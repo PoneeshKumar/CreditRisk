@@ -1,16 +1,14 @@
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from google import genai
 import os
 import pdfplumber
 import json
 import io
 from fastapi.middleware.cors import CORSMiddleware
+import re
 
 load_dotenv()
-
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -37,48 +35,101 @@ class DocumentRequest(BaseModel):
 def root():
     return("Welcome to the Credit Risk Assesment API")
 
-# create an endpoint to analyze the PDF and return a credit risk assessment
+# create a function to extract financial data from the etxt of a PDF for scoring.
+def extract_financials(text: str) -> dict:
+    patterns = {
+        "revenue":          r"(?:total revenue|net revenue|revenue)[^\d]*([\d,]+)",
+        "net_income":       r"(?:net income|net profit|net earnings)[^\d]*([\d,]+)",
+        "gross_profit":     r"(?:gross profit|gross income)[^\d]*([\d,]+)",
+        "total_debt":       r"(?:total debt|long.term debt|total liabilities)[^\d]*([\d,]+)",
+        "cash":             r"(?:cash and cash equivalents|cash)[^\d]*([\d,]+)",
+        "operating_income": r"(?:operating income|income from operations)[^\d]*([\d,]+)",
+    }
+    results = {}
+    text_lower = text.lower()
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text_lower)
+        if match:
+            results[key] = float(match.group(1).replace(",", ""))
+        else:
+            results[key] = None
+    return results
+
+# make a function that takes in the financial data and calculates a risk score, tier and reccomendation
+def score_from_financials(data: dict, business_name: str) -> dict:
+    score = 50
+
+    if data["net_income"] is not None:
+        if data["net_income"] > 0:
+            score -= 20
+        else:
+            score += 30
+
+    if data["revenue"] and data["total_debt"]:
+        debt_ratio = data["total_debt"] / data["revenue"]
+        if debt_ratio > 2:
+            score += 20
+        elif debt_ratio < 0.5:
+            score -= 10
+
+    if data["cash"] and data["total_debt"]:
+        if data["cash"] > data["total_debt"]:
+            score -= 15
+
+    score = max(0, min(100, score))
+
+    if score < 40:
+        tier = "low"
+        recommendation = "approve"
+    elif score < 70:
+        tier = "medium"
+        recommendation = "review"
+    else:
+        tier = "high"
+        recommendation = "reject"
+
+    findings = []
+    for k, v in data.items():
+        if v is not None:
+            findings.append(f"{k.replace('_', ' ').title()}: ${v:,.0f}")
+    if not findings:
+        findings = ["No structured financial data found in document"]
+
+    return {
+        "business_name": business_name,
+        "risk_score": score,
+        "risk_tier": tier,
+        "recommendation": recommendation,
+        "key_findings": findings,
+        "summary": f"{business_name} has a {tier} risk score of {score}/100. Recommendation: {recommendation}.",
+        "raw_data": data
+    }
+
+# make a function that takes in a PDF file, extracts the text, and returns the financial data and risk assessment
 @app.post("/analyze-pdf")
 async def analyze_pdf(file: UploadFile = File(...)):
-    content = await file.read()
+    contents = await file.read()
 
-    # Use pdfplumber to extract text from the PDF file
-    with pdfplumber.open(io.BytesIO(content)) as pdf:
+    with pdfplumber.open(io.BytesIO(contents)) as pdf:
         text = ""
+        business_name = "Unknown"
         for page in pdf.pages:
-            text += page.extract_text()
-    # If no text is extracted, return an error message  
-    if not text.strip():
-        return {"error": "No text found in the PDF."}
-    # create a prompt for the gemini model to analyze the extracted text and return a credit risk assessment in the specified JSON format
-    prompt = f""" You are a senior credit risk analyst, analyze the following business information and provide a credit risk assessment. Return said credit risk assessment only as a JSON, with no extra text or markdown.
-    The JSON must have these fields only:
-        {{
-        "business_name": "name of the business or Unknown",
-        "risk_score": a number from 0 to 100 where 100 is highest risk,
-        "risk_tier": "low" or "medium" or "high",
-        "key_findings": ["finding 1", "finding 2", "finding 3"],
-        "recommendation": "approve" or "review" or "reject",
-        "summary": "2-3 sentence plain English explanation of the risk"
-        }}
+            page_text = page.extract_text() or ""
+            text += page_text
+            if business_name == "Unknown" and page_text.strip():
+                business_name = page_text.strip().split("\n")[0][:50]
 
-    Financial Document:
-    {text[:4000]}
-    """
-    # send the prompt to the Gemini model and get the response
-    response = client.models.generate_content(
-    model="gemini-1.5-flash",
-    contents=prompt
-    )
-    raw = response.text.strip()
-    raw = raw.replace("```json", "").replace("```", "").strip()
-    result = json.loads(raw)
-    # assign next id to the application and increment the next_id variable for the next application
+    if not text.strip():
+        return {"error": "Could not extract text from PDF"}
+
+    financials = extract_financials(text)
+    result = score_from_financials(financials, business_name)
+
     global next_id
-    application_id = next_id
+    result["id"] = next_id
     next_id += 1
     application_data[result["id"]] = result
-    # return the credit risk assessment as a JSON response
+
     return result
 
 
