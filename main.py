@@ -83,7 +83,11 @@ def extract_multi_year(text: str, label_patterns: list, years: list) -> dict:
     return {}
 
 # analyze each section of the financial statement, calculating scores and findings based on extracted values for each year
-def analyze_income_statement_multi(text: str, years: list) -> dict:
+def analyze_income_statement_multi(text: str, years: list, user_id: str) -> dict:
+    keywords = ["net sales", "net income", "gross profit", "revenue", 
+                "cost of sales", "operating income", "net loss"]
+    if not any(kw in text.lower() for kw in keywords):
+        return {}
     fields = {
         "revenue":          ["total net sales", "net sales", "total revenue", "net revenue", "revenue"],
         "net_income":       ["net earnings", "net income", "net loss"],
@@ -121,7 +125,11 @@ def analyze_income_statement_multi(text: str, years: list) -> dict:
     return per_year
 
 # Similar structure for balance sheet, cash flow, bank statement, and credit application analyses, each with their own relevant fields and scoring logic
-def analyze_balance_sheet_multi(text: str, years: list) -> dict:
+def analyze_balance_sheet_multi(text: str, years: list, user_id: str) -> dict:
+    keywords = ["total assets", "total liabilities", "shareholders equity",
+                "current assets", "current liabilities", "balance sheet"]
+    if not any(kw in text.lower() for kw in keywords):
+        return {}
     fields = {
         "total_assets":        ["total assets"],
         "total_liabilities":   ["total liabilities"],
@@ -158,7 +166,11 @@ def analyze_balance_sheet_multi(text: str, years: list) -> dict:
     return per_year
 
 # For cash flow, we look at operating cash flow and net change in cash as key indicators of liquidity and financial health, adjusting scores based on positive or negative trends
-def analyze_cash_flow_multi(text: str, years: list) -> dict:
+def analyze_cash_flow_multi(text: str, years: list, user_id: str) -> dict:
+    keywords = ["operating activities", "investing activities", 
+                "financing activities", "cash flows"]
+    if not any(kw in text.lower() for kw in keywords):
+        return {}
     fields = {
         "operating_cash":  ["net cash from operating", "cash from operating activities", "net cash provided by operating"],
         "investing_cash":  ["net cash from investing", "cash from investing activities"],
@@ -185,13 +197,19 @@ def analyze_cash_flow_multi(text: str, years: list) -> dict:
         }
     return per_year
 # For bank statements, we focus on trends in opening and closing balances, total deposits and withdrawals, and any occurrences of non-sufficient funds (NSF), which can be a strong negative indicator of cash flow issues
-def analyze_bank_statement_multi(text: str, years: list) -> dict:
+def analyze_bank_statement_multi(text: str, years: list, user_id: str) -> dict:
+    bank_keywords = ["total deposits", "total withdrawals", "balance forward", 
+                     "opening balance", "closing balance", "account number",
+                     "non-sufficient funds", "nsf charge"]
+    
+    if not any(kw in text.lower() for kw in bank_keywords):
+        return {}
     fields = {
         "opening_balance":   ["opening balance", "balance forward"],
         "closing_balance":   ["closing balance", "ending balance"],
         "total_deposits":    ["total deposits", "total credits"],
         "total_withdrawals": ["total withdrawals", "total debits"],
-        "nsf_count":         ["nsf", "non-sufficient funds"],
+        "nsf_count": ["nsf charge", "nsf fee", "non-sufficient funds charge"],
     }
     results = {f: extract_multi_year(text, p, years) for f, p in fields.items()}
     per_year = {}
@@ -199,6 +217,7 @@ def analyze_bank_statement_multi(text: str, years: list) -> dict:
         score = 50
         findings = []
         nsf = results["nsf_count"].get(year)
+
         closing = results["closing_balance"].get(year)
         opening = results["opening_balance"].get(year)
         deposits = results["total_deposits"].get(year)
@@ -225,7 +244,11 @@ def analyze_bank_statement_multi(text: str, years: list) -> dict:
     return per_year
 
 # For credit applications, we look at the requested amount, annual income, existing debt, years in business, and any missed payments. We calculate a score based on debt-to-income ratio, business longevity, and payment history, which are key factors in credit risk assessment
-def analyze_credit_application_multi(text: str, years: list) -> dict:
+def analyze_credit_application_multi(text: str, years: list, user_id: str) -> dict:
+    keywords = ["operating activities", "investing activities", 
+                "financing activities", "cash flows"]
+    if not any(kw in text.lower() for kw in keywords):
+        return {}
     fields = {
         "requested_amount":  ["requested amount", "credit limit requested", "loan amount"],
         "annual_income":     ["annual income", "annual revenue"],
@@ -365,11 +388,11 @@ async def analyze_pdf(file: UploadFile = File(...), user_id: str = Depends(get_u
         return {"error": "Could not detect fiscal years in document"}
 
     # Run all analyzers
-    income_by_year    = analyze_income_statement_multi(text, years)
-    balance_by_year   = analyze_balance_sheet_multi(text, years)
-    cashflow_by_year  = analyze_cash_flow_multi(text, years)
-    bank_by_year      = analyze_bank_statement_multi(text, years)
-    credit_by_year    = analyze_credit_application_multi(text, years)
+    income_by_year    = analyze_income_statement_multi(text, years, user_id)
+    balance_by_year   = analyze_balance_sheet_multi(text, years, user_id)
+    cashflow_by_year  = analyze_cash_flow_multi(text, years, user_id)
+    bank_by_year      = analyze_bank_statement_multi(text, years, user_id)
+    credit_by_year    = analyze_credit_application_multi(text, years, user_id)
 
     company_id = get_or_create_company(business_name, user_id)
     results_by_year = {}
