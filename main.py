@@ -1,12 +1,14 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from supabase import create_client
 import os
 import pdfplumber
 import io
 from fastapi.middleware.cors import CORSMiddleware
 import re
-from supabase import create_client
+import jwt
 
 # load the .env file and initialize Supabase client
 load_dotenv()
@@ -14,6 +16,17 @@ supabase = create_client(
     os.getenv("SUPABASE_URL") or "",
     os.getenv("SUPABASE_KEY") or ""
 )
+
+
+# Auth
+security = HTTPBearer()
+
+def get_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    try:
+        payload = jwt.decode(credentials.credentials, options={"verify_signature": False})
+        return payload["sub"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 # create the FastAPI app and configure CORS
 app = FastAPI()
@@ -256,15 +269,15 @@ def get_tier(score):
     return "high", "reject"
 
 # helper function to get or create a company record in the database, ensuring we have a consistent company_id to link analyses to, and avoiding duplicates based on company name
-def get_or_create_company(name: str) -> str:
-    existing = supabase.table("companies").select("id").eq("name", name).execute()
+def get_or_create_company(name: str, user_id: str) -> str:
+    existing = supabase.table("companies").select("id").eq("name", name).eq("user_id", user_id).execute()
     if existing.data:
         return existing.data[0]["id"]
-    new = supabase.table("companies").insert({"name": name}).execute()
-    return new.data[0]["id"]  # type: ignore
+    new = supabase.table("companies").insert({"name": name, "user_id": user_id}).execute()
+    return new.data[0]["id"]
 
 # helper function to save the analysis results to the database, including both the overall scores and the raw extracted values for each section, which allows for future reference and historical tracking of a company's financial health over time
-def save_analysis(company_id: str, fiscal_year: int, result: dict, sections: dict):
+def save_analysis(company_id: str, fiscal_year: int, result: dict, sections: dict, user_id: str):
     income = sections.get("income_statement", {}).get("raw", {})
     balance = sections.get("balance_sheet", {}).get("raw", {})
     cashflow = sections.get("cash_flow", {}).get("raw", {})
@@ -281,6 +294,7 @@ def save_analysis(company_id: str, fiscal_year: int, result: dict, sections: dic
     raw_sections = result.get("sections", {})
     record = {
         "company_id": company_id,
+        "user_id": user_id,
         "fiscal_year": fiscal_year,
         "overall_score": result["overall_score"],
         "overall_tier": result["overall_tier"],
@@ -311,7 +325,7 @@ def root():
 
 # The main endpoint to analyze an uploaded PDF, which extracts text, detects fiscal years, runs multiple analyzers for different financial sections, calculates overall scores and tiers, and saves the results to the database for future reference
 @app.post("/analyze-pdf")
-async def analyze_pdf(file: UploadFile = File(...)):
+async def analyze_pdf(file: UploadFile = File(...), user_id: str = Depends(get_user_id)):
     contents = await file.read()
 
     with pdfplumber.open(io.BytesIO(contents)) as pdf:
@@ -320,8 +334,28 @@ async def analyze_pdf(file: UploadFile = File(...)):
         for page in pdf.pages:
             page_text = page.extract_text() or ""
             text += page_text
-            if business_name == "Unknown" and page_text.strip():
-                business_name = page_text.strip().split("\n")[0][:50]
+
+        # Try to find company name from common SEC filing patterns
+        name_patterns = [
+            r"(?:registrant|company name|corporation|incorporated|inc\.)[:\s]+([A-Z][A-Za-z\s&,\.]+(?:Inc|Corp|LLC|Ltd|Co)?\.?)",
+            r"^([A-Z][A-Z\s&]+(?:INC|CORP|LLC|LTD|CO)\.?)",  # ALL CAPS company name
+        ]
+        
+        for pattern in name_patterns:
+            match = re.search(pattern, text[:3000], re.MULTILINE | re.IGNORECASE)
+            if match:
+                candidate = match.group(1).strip()
+                if 3 < len(candidate) < 80:
+                    business_name = candidate
+                    break
+    
+    # Fallback to first non-empty line
+    if business_name == "Unknown":
+        for line in text.split('\n')[:20]:
+            line = line.strip()
+            if len(line) > 3 and not re.match(r'^[\d\s\-/]+$', line):
+                business_name = line[:80]
+                break
 
     if not text.strip():
         return {"error": "Could not extract text from PDF"}
@@ -337,7 +371,7 @@ async def analyze_pdf(file: UploadFile = File(...)):
     bank_by_year      = analyze_bank_statement_multi(text, years)
     credit_by_year    = analyze_credit_application_multi(text, years)
 
-    company_id = get_or_create_company(business_name)
+    company_id = get_or_create_company(business_name, user_id)
     results_by_year = {}
 
     for year in years:
@@ -425,12 +459,12 @@ def list_applications():
 
 # API endpoint to list all companies in the database, which provides a way to retrieve the companies for which analyses have been performed, and can be used to link to historical analysis data for each company
 @app.get("/companies")
-def list_companies():
-    result = supabase.table("companies").select("*").order("name").execute()
+def list_companies(user_id: str = Depends(get_user_id)):
+    result = supabase.table("companies").select("*").eq("user_id", user_id).order("name").execute()
     return result.data
 
 # API endpoint to retrieve the historical analyses for a specific company, which allows lenders or administrators to see how a company's financial health has changed over time based on the stored analysis results in the database
 @app.get("/companies/{company_id}/history")
-def company_history(company_id: str):
-    result = supabase.table("analyses").select("*").eq("company_id", company_id).order("fiscal_year").execute()
+def company_history(company_id: str, user_id: str = Depends(get_user_id)):
+    result = supabase.table("analyses").select("*").eq("company_id", company_id).eq("user_id", user_id).order("fiscal_year").execute()
     return result.data
