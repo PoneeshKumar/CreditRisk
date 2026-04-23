@@ -7,8 +7,13 @@ import json
 import io
 from fastapi.middleware.cors import CORSMiddleware
 import re
+from supabase import create_client
 
 load_dotenv()
+supabase = create_client(
+    os.getenv("SUPABASE_URL") or "",
+    os.getenv("SUPABASE_KEY") or ""
+)
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -212,9 +217,60 @@ def get_tier(score):
     if score < 70: return "medium", "review"
     return "high", "reject"
 
+
+# create a function to get or create a company record in the database based on the business name, this will return the company ID which can be used to associate the analysis results with the correct company
+def get_or_create_company(name: str) -> str:
+    existing = supabase.table("companies").select("id").eq("name", name).execute()
+    if existing.data:
+        return existing.data[0]["id"]
+    new = supabase.table("companies").insert({"name": name}).execute()
+    return new.data[0]["id"]
+
+# create a function to save the analysis results to the database, this will take in the company ID, fiscal year, overall score, tier, recommendation, and the raw findings from each section and store them in a structured format in the analyses table
+def save_analysis(company_id: str, fiscal_year: int, result: dict, sections: dict):
+    raw = result.get("sections", {})
+    income = sections.get("income_statement", {}).get("raw", {})
+    balance = sections.get("balance_sheet", {}).get("raw", {})
+    cashflow = sections.get("cash_flow", {}).get("raw", {})
+    bank = sections.get("bank_statement", {}).get("raw", {})
+
+    debt_ratio = None
+    if income.get("total_debt") and income.get("revenue"):
+        debt_ratio = income["total_debt"] / income["revenue"]
+
+    current_ratio = None
+    if balance.get("current_assets") and balance.get("current_liabilities"):
+        current_ratio = balance["current_assets"] / balance["current_liabilities"]
+
+    record = {
+        "company_id": company_id,
+        "fiscal_year": fiscal_year,
+        "overall_score": result["overall_score"],
+        "overall_tier": result["overall_tier"],
+        "overall_recommendation": result["overall_recommendation"],
+        "income_score": raw.get("income_statement", {}).get("score"),
+        "balance_score": raw.get("balance_sheet", {}).get("score"),
+        "cashflow_score": raw.get("cash_flow", {}).get("score"),
+        "bank_score": raw.get("bank_statement", {}).get("score"),
+        "credit_score": raw.get("credit_application", {}).get("score"),
+        "revenue": income.get("revenue"),
+        "net_income": income.get("net_income"),
+        "total_assets": balance.get("total_assets"),
+        "total_liabilities": balance.get("total_liabilities"),
+        "total_equity": balance.get("total_equity"),
+        "operating_cash": cashflow.get("operating_cash"),
+        "closing_balance": bank.get("closing_balance"),
+        "nsf_count": int(bank["nsf_count"]) if bank.get("nsf_count") else 0,
+        "debt_to_revenue": debt_ratio,
+        "current_ratio": current_ratio,
+        "raw_findings": raw,
+    }
+
+    supabase.table("analyses").upsert(record, on_conflict="company_id,fiscal_year").execute()
+
 # create an endpoint to upload a PDF document, extract the text, analyze the relevant sections, and return a structured response with the findings and an overall risk assessment
 @app.post("/analyze-pdf")
-async def analyze_pdf(file: UploadFile = File(...)):
+async def analyze_pdf(file: UploadFile = File(...), fiscal_year: int = 2024):
     contents = await file.read()
 
     with pdfplumber.open(io.BytesIO(contents)) as pdf:
@@ -230,19 +286,14 @@ async def analyze_pdf(file: UploadFile = File(...)):
         return {"error": "Could not extract text from PDF"}
 
     sections = {}
-
     if any(k in text.lower() for k in ["net income", "gross profit", "revenue", "operating income"]):
         sections["income_statement"] = analyze_income_statement(text)
-
     if any(k in text.lower() for k in ["total assets", "total liabilities", "total equity"]):
         sections["balance_sheet"] = analyze_balance_sheet(text)
-
     if any(k in text.lower() for k in ["operating activities", "investing activities", "financing activities"]):
         sections["cash_flow"] = analyze_cash_flow(text)
-
     if any(k in text.lower() for k in ["total deposits", "total withdrawals", "balance forward", "nsf"]):
         sections["bank_statement"] = analyze_bank_statement(text)
-
     if any(k in text.lower() for k in ["credit limit requested", "requested amount", "years in business"]):
         sections["credit_application"] = analyze_credit_application(text)
 
@@ -252,27 +303,44 @@ async def analyze_pdf(file: UploadFile = File(...)):
     overall_score = int(sum(s["score"] for s in sections.values()) / len(sections))
     overall_tier, overall_recommendation = get_tier(overall_score)
 
-    global next_id
     result = {
-        "id": next_id,
         "business_name": business_name,
+        "fiscal_year": fiscal_year,
         "overall_score": overall_score,
         "overall_tier": overall_tier,
         "overall_recommendation": overall_recommendation,
         "sections": {
-            k: {
-                "score": v["score"],
-                "tier": get_tier(v["score"])[0],
-                "findings": v["findings"]
-            }
+            k: {"score": v["score"], "tier": get_tier(v["score"])[0], "findings": v["findings"]}
             for k, v in sections.items()
         }
     }
-    next_id += 1
-    application_data[result["id"]] = result
+
+    company_id = get_or_create_company(business_name)
+    save_analysis(company_id, fiscal_year, result, sections)
+    result["company_id"] = company_id
+
     return result
 
-# create an endpoint to apply for credit based on the document analysis, this will take in the same information as the DocumentRequest model, calculate a credit score and risk tier, and return a response with the application ID, status, credit score, and risk tier
+def calculate_credit_score(application: DocumentRequest):
+    score = 700
+    if application.annual_revenue < 100000:
+        score -= 50
+    if application.years_in_business < 2:
+        score -= 50
+    if application.outstanding_debt > 50000:
+        score -= 50
+    if application.missed_payments > 3:
+        score -= 50
+    return max(score, 300)
+
+def get_risk_tier(credit_score: int):
+    if credit_score >= 650:
+        return "low"
+    elif credit_score >= 550:
+        return "medium"
+    else:
+        return "high"
+
 @app.post("/apply")
 def apply(application: DocumentRequest):
     global next_id
@@ -286,45 +354,17 @@ def apply(application: DocumentRequest):
     application_data[application_id] = app_record
     return {"application_id": application_id, "status": "pending", "credit_score": app_record["credit_score"], "risk_tier": app_record["risk_tier"]}
 
-
-
-# create a function to calculate a credit score based on the information provided in the DocumentRequest model, this is a simple scoring algorithm for demonstration purposes and can be adjusted to be more complex and accurate based on real-world credit scoring models
-def calculate_credit_score(application: DocumentRequest):
-    score = 700
-    # Adjust score based on annual revenue
-    if application.annual_revenue < 100000:
-        score -= 50
-    # Adjust score based on years in business
-    if application.years_in_business < 2:
-        score -= 50
-    # Adjust score based on outstanding debt
-    if application.outstanding_debt > 50000:
-        score -= 50
-    # Adjust score based on missed payments
-    if application.missed_payments > 3:
-        score -= 50
-    # Ensure score does not go below 300
-    return max(score, 300)
-
-
-# create a function to determine the risk tier based on the credit score, this is a simple categorization for demonstration purposes and can be adjusted to be more complex and accurate based on real-world credit risk assessment models
-def get_risk_tier(credit_score: int):
-    # Determine risk tier based on credit score
-    if credit_score >= 650:
-        return "low"
-    elif credit_score >= 550:
-        return "medium"
-    else:
-        return "high"
-    
-# create an endpoint to list all applications and their data, this is for demonstration purposes and in a real-world application you would want to implement proper authentication and authorization to protect sensitive application data
 @app.get("/applications")
 def list_applications():
     return application_data
 
+@app.get("/companies")
+def list_companies():
+    result = supabase.table("companies").select("*").order("name").execute()
+    return result.data
 
-
-        
-
-
+@app.get("/companies/{company_id}/history")
+def company_history(company_id: str):
+    result = supabase.table("analyses").select("*").eq("company_id", company_id).order("fiscal_year").execute()
+    return result.data
 

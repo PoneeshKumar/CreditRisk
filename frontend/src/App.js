@@ -1,27 +1,48 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export default function App() {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [fiscalYear, setFiscalYear] = useState(2024);
+  const [history, setHistory] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [view, setView] = useState("upload");
+
+  useEffect(() => {
+    axios.get("http://localhost:8000/companies").then(res => setCompanies(res.data));
+  }, [result]);
 
   const handleUpload = async () => {
     if (!file) return;
     setLoading(true);
     setError(null);
     setResult(null);
+    setHistory([]);
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await axios.post("http://localhost:8000/analyze-pdf", formData);
+      const res = await axios.post(
+        `http://localhost:8000/analyze-pdf?fiscal_year=${fiscalYear}`,
+        formData
+      );
       setResult(res.data);
+      if (res.data.company_id) {
+        loadHistory(res.data.company_id);
+      }
     } catch (err) {
       setError("Failed to analyze PDF. Make sure your backend is running.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadHistory = async (companyId) => {
+    const res = await axios.get(`http://localhost:8000/companies/${companyId}/history`);
+    setHistory(res.data);
   };
 
   const tierColor = (tier) => {
@@ -58,70 +79,213 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8f8f6", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ background: "#fff", borderBottom: "1px solid #eee", padding: "16px 40px", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: "#378ADD", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+
+      {/* Nav */}
+      <div style={{ background: "#fff", borderBottom: "1px solid #eee", padding: "16px 40px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: "#378ADD", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <span style={{ fontSize: 16, fontWeight: 500 }}>Credit Risk Analyzer</span>
         </div>
-        <span style={{ fontSize: 16, fontWeight: 500 }}>Credit Risk Analyzer</span>
+        <div style={{ display: "flex", gap: 8 }}>
+          {["upload", "companies"].map(v => (
+            <button key={v} onClick={() => setView(v)}
+              style={{ padding: "7px 16px", borderRadius: 8, border: "none", fontSize: 13, cursor: "pointer", background: view === v ? "#378ADD" : "transparent", color: view === v ? "#fff" : "#888", fontWeight: view === v ? 500 : 400 }}>
+              {v === "upload" ? "Analyze" : "Companies"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div style={{ maxWidth: 820, margin: "40px auto", padding: "0 20px" }}>
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 32, marginBottom: 24 }}>
-          <h2 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 500 }}>Upload financial document</h2>
-          <p style={{ margin: "0 0 24px", fontSize: 14, color: "#888" }}>Supports income statements, balance sheets, cash flow, bank statements, and credit applications</p>
-          <div style={{ border: "2px dashed #ddd", borderRadius: 12, padding: "32px 24px", textAlign: "center", marginBottom: 20, background: file ? "#f0f9f4" : "#fafafa", borderColor: file ? "#1D9E75" : "#ddd" }}>
-            <input type="file" accept=".pdf" id="file-input" onChange={(e) => setFile(e.target.files[0])} style={{ display: "none" }}/>
-            <label htmlFor="file-input" style={{ cursor: "pointer" }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={file ? "#1D9E75" : "#aaa"} strokeWidth="1.5" style={{ display: "block", margin: "0 auto 12px" }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <p style={{ margin: "0 0 4px", fontSize: 14, color: file ? "#1D9E75" : "#555", fontWeight: 500 }}>{file ? file.name : "Click to upload PDF"}</p>
-              <p style={{ margin: 0, fontSize: 12, color: "#aaa" }}>{file ? `${(file.size / 1024).toFixed(1)} KB` : "PDF files only"}</p>
-            </label>
-          </div>
-          <button onClick={handleUpload} disabled={!file || loading}
-            style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", background: !file || loading ? "#ccc" : "#378ADD", color: "#fff", fontSize: 15, fontWeight: 500, cursor: !file || loading ? "not-allowed" : "pointer" }}>
-            {loading ? "Analyzing document..." : "Analyze PDF"}
-          </button>
-          {error && <p style={{ margin: "16px 0 0", color: "#E24B4A", fontSize: 14 }}>{error}</p>}
-        </div>
+      <div style={{ maxWidth: 860, margin: "40px auto", padding: "0 20px" }}>
 
-        {loading && (
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 40, textAlign: "center" }}>
-            <p style={{ color: "#888", fontSize: 14 }}>Analyzing all financial sections...</p>
+        {/* Upload view */}
+        {view === "upload" && (
+          <div>
+            <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 32, marginBottom: 24 }}>
+              <h2 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 500 }}>Upload financial document</h2>
+              <p style={{ margin: "0 0 24px", fontSize: 14, color: "#888" }}>Supports income statements, balance sheets, cash flow, bank statements, and credit applications</p>
+
+              <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center" }}>
+                <label style={{ fontSize: 13, color: "#888" }}>Fiscal year</label>
+                <select value={fiscalYear} onChange={e => setFiscalYear(Number(e.target.value))}
+                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14 }}>
+                  {[2020, 2021, 2022, 2023, 2024, 2025].map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ border: "2px dashed #ddd", borderRadius: 12, padding: "32px 24px", textAlign: "center", marginBottom: 20, background: file ? "#f0f9f4" : "#fafafa", borderColor: file ? "#1D9E75" : "#ddd" }}>
+                <input type="file" accept=".pdf" id="file-input" onChange={(e) => setFile(e.target.files[0])} style={{ display: "none" }}/>
+                <label htmlFor="file-input" style={{ cursor: "pointer" }}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={file ? "#1D9E75" : "#aaa"} strokeWidth="1.5" style={{ display: "block", margin: "0 auto 12px" }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <p style={{ margin: "0 0 4px", fontSize: 14, color: file ? "#1D9E75" : "#555", fontWeight: 500 }}>{file ? file.name : "Click to upload PDF"}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: "#aaa" }}>{file ? `${(file.size / 1024).toFixed(1)} KB` : "PDF files only"}</p>
+                </label>
+              </div>
+
+              <button onClick={handleUpload} disabled={!file || loading}
+                style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", background: !file || loading ? "#ccc" : "#378ADD", color: "#fff", fontSize: 15, fontWeight: 500, cursor: !file || loading ? "not-allowed" : "pointer" }}>
+                {loading ? "Analyzing document..." : "Analyze PDF"}
+              </button>
+              {error && <p style={{ margin: "16px 0 0", color: "#E24B4A", fontSize: 14 }}>{error}</p>}
+            </div>
+
+            {loading && (
+              <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 40, textAlign: "center" }}>
+                <p style={{ color: "#888", fontSize: 14 }}>Analyzing all financial sections...</p>
+              </div>
+            )}
+
+            {result && (
+              <div>
+                {/* Overall */}
+                <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 24, marginBottom: 20, display: "flex", alignItems: "center", gap: 32 }}>
+                  <ScoreGauge score={result.overall_score} size={140}/>
+                  <div>
+                    <p style={{ margin: "0 0 4px", fontSize: 13, color: "#888" }}>Company</p>
+                    <p style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 500 }}>{result.business_name}</p>
+                    <p style={{ margin: "0 0 12px", fontSize: 13, color: "#aaa" }}>FY {result.fiscal_year}</p>
+                    <p style={{ margin: "0 0 4px", fontSize: 13, color: "#888" }}>Overall risk</p>
+                    <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 20, background: tierColor(result.overall_tier) + "20", color: tierColor(result.overall_tier), fontWeight: 500, fontSize: 14, textTransform: "capitalize", marginBottom: 12 }}>{result.overall_tier} risk</span>
+                    <p style={{ margin: "0 0 4px", fontSize: 13, color: "#888" }}>Recommendation</p>
+                    <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 20, background: tierColor(result.overall_tier) + "20", color: tierColor(result.overall_tier), fontWeight: 500, fontSize: 14, textTransform: "capitalize" }}>{result.overall_recommendation}</span>
+                  </div>
+                </div>
+
+                {/* Section breakdown */}
+                <p style={{ fontSize: 13, color: "#888", margin: "0 0 12px" }}>Section breakdown — {Object.keys(result.sections).length} document{Object.keys(result.sections).length > 1 ? "s" : ""} detected</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 20 }}>
+                  {Object.entries(result.sections).map(([key, section]) => (
+                    <div key={key} style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${tierColor(section.tier)}30`, padding: 20 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{sectionLabel(key)}</p>
+                        <ScoreGauge score={section.score} size={56}/>
+                      </div>
+                      <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: tierColor(section.tier) + "20", color: tierColor(section.tier), fontWeight: 500, fontSize: 12, textTransform: "capitalize", marginBottom: 10 }}>{section.tier} risk</span>
+                      <ul style={{ margin: 0, paddingLeft: 16 }}>
+                        {section.findings.map((f, i) => (
+                          <li key={i} style={{ fontSize: 12, color: "#555", marginBottom: 3, lineHeight: 1.5 }}>{f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Year over year chart */}
+                {history.length > 1 && (
+                  <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 24 }}>
+                    <p style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 500 }}>Year-over-year risk trend</p>
+                    <ResponsiveContainer width="100%" height={240}>
+                      <LineChart data={history}>
+                        <XAxis dataKey="fiscal_year"/>
+                        <YAxis domain={[0, 100]}/>
+                        <Tooltip/>
+                        <Legend/>
+                        <Line type="monotone" dataKey="overall_score" stroke="#378ADD" name="Overall" strokeWidth={2} dot={{ r: 4 }}/>
+                        <Line type="monotone" dataKey="income_score" stroke="#1D9E75" name="Income" strokeWidth={1.5} strokeDasharray="4 4"/>
+                        <Line type="monotone" dataKey="balance_score" stroke="#BA7517" name="Balance sheet" strokeWidth={1.5} strokeDasharray="4 4"/>
+                        <Line type="monotone" dataKey="cashflow_score" stroke="#7F77DD" name="Cash flow" strokeWidth={1.5} strokeDasharray="4 4"/>
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {result && (
+        {/* Companies view */}
+        {view === "companies" && (
           <div>
-            {/* Overall score */}
-            <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 24, marginBottom: 20, display: "flex", alignItems: "center", gap: 32 }}>
-              <ScoreGauge score={result.overall_score} size={140}/>
-              <div>
-                <p style={{ margin: "0 0 4px", fontSize: 13, color: "#888" }}>Company</p>
-                <p style={{ margin: "0 0 12px", fontSize: 20, fontWeight: 500 }}>{result.business_name}</p>
-                <p style={{ margin: "0 0 4px", fontSize: 13, color: "#888" }}>Overall risk</p>
-                <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 20, background: tierColor(result.overall_tier) + "20", color: tierColor(result.overall_tier), fontWeight: 500, fontSize: 14, textTransform: "capitalize", marginBottom: 12 }}>{result.overall_tier} risk</span>
-                <p style={{ margin: "0 0 4px", fontSize: 13, color: "#888" }}>Recommendation</p>
-                <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 20, background: tierColor(result.overall_tier) + "20", color: tierColor(result.overall_tier), fontWeight: 500, fontSize: 14, textTransform: "capitalize" }}>{result.overall_recommendation}</span>
+            <h2 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 500 }}>All companies</h2>
+            {companies.length === 0 && (
+              <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 40, textAlign: "center" }}>
+                <p style={{ color: "#888", fontSize: 14 }}>No companies yet — upload a PDF to get started</p>
               </div>
-            </div>
-
-            {/* Section breakdown */}
-            <p style={{ fontSize: 13, color: "#888", margin: "0 0 12px" }}>Section breakdown — {Object.keys(result.sections).length} document{Object.keys(result.sections).length > 1 ? "s" : ""} detected</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-              {Object.entries(result.sections).map(([key, section]) => (
-                <div key={key} style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${tierColor(section.tier)}30`, padding: 20 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{sectionLabel(key)}</p>
-                    <ScoreGauge score={section.score} size={56}/>
-                  </div>
-                  <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: tierColor(section.tier) + "20", color: tierColor(section.tier), fontWeight: 500, fontSize: 12, textTransform: "capitalize", marginBottom: 10 }}>{section.tier} risk</span>
-                  <ul style={{ margin: 0, paddingLeft: 16 }}>
-                    {section.findings.map((f, i) => (
-                      <li key={i} style={{ fontSize: 12, color: "#555", marginBottom: 3, lineHeight: 1.5 }}>{f}</li>
-                    ))}
-                  </ul>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+              {companies.map(c => (
+                <div key={c.id} onClick={() => { loadHistory(c.id); setView("history"); }}
+                  style={{ background: "#fff", borderRadius: 14, border: "1px solid #eee", padding: 20, cursor: "pointer" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 500 }}>{c.name}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: "#aaa" }}>Added {new Date(c.created_at).toLocaleDateString()}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* History view */}
+        {view === "history" && history.length > 0 && (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+              <button onClick={() => setView("companies")}
+                style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #ddd", background: "transparent", fontSize: 13, cursor: "pointer", color: "#555" }}>
+                Back
+              </button>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 500 }}>{history[0]?.business_name || "Company"} — history</h2>
+            </div>
+
+            {/* Year cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
+              {history.map(h => (
+                <div key={h.id} style={{ background: "#fff", borderRadius: 14, border: "1px solid #eee", padding: 20, textAlign: "center" }}>
+                  <p style={{ margin: "0 0 8px", fontSize: 13, color: "#888" }}>FY {h.fiscal_year}</p>
+                  <ScoreGauge score={h.overall_score} size={80}/>
+                  <span style={{ display: "inline-block", marginTop: 8, padding: "3px 10px", borderRadius: 20, background: tierColor(h.overall_tier) + "20", color: tierColor(h.overall_tier), fontWeight: 500, fontSize: 12, textTransform: "capitalize" }}>{h.overall_tier}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Trend chart */}
+            {history.length > 1 && (
+              <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 24, marginBottom: 16 }}>
+                <p style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 500 }}>Risk score trend</p>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={history}>
+                    <XAxis dataKey="fiscal_year"/>
+                    <YAxis domain={[0, 100]}/>
+                    <Tooltip/>
+                    <Legend/>
+                    <Line type="monotone" dataKey="overall_score" stroke="#378ADD" name="Overall" strokeWidth={2} dot={{ r: 5 }}/>
+                    <Line type="monotone" dataKey="income_score" stroke="#1D9E75" name="Income" strokeWidth={1.5} strokeDasharray="4 4"/>
+                    <Line type="monotone" dataKey="balance_score" stroke="#BA7517" name="Balance sheet" strokeWidth={1.5} strokeDasharray="4 4"/>
+                    <Line type="monotone" dataKey="cashflow_score" stroke="#7F77DD" name="Cash flow" strokeWidth={1.5} strokeDasharray="4 4"/>
+                    <Line type="monotone" dataKey="bank_score" stroke="#E24B4A" name="Bank" strokeWidth={1.5} strokeDasharray="4 4"/>
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Financial metrics table */}
+            <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 24 }}>
+              <p style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 500 }}>Financial metrics by year</p>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: "#f5f5f5" }}>
+                      {["Year", "Revenue", "Net Income", "Total Assets", "Total Liabilities", "Operating Cash"].map(h => (
+                        <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 500, color: "#555" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map(h => (
+                      <tr key={h.id} style={{ borderTop: "1px solid #f0f0f0" }}>
+                        <td style={{ padding: "8px 12px", fontWeight: 500 }}>FY {h.fiscal_year}</td>
+                        <td style={{ padding: "8px 12px" }}>{h.revenue ? `$${Number(h.revenue).toLocaleString()}` : "—"}</td>
+                        <td style={{ padding: "8px 12px", color: h.net_income > 0 ? "#1D9E75" : "#E24B4A" }}>{h.net_income ? `$${Number(h.net_income).toLocaleString()}` : "—"}</td>
+                        <td style={{ padding: "8px 12px" }}>{h.total_assets ? `$${Number(h.total_assets).toLocaleString()}` : "—"}</td>
+                        <td style={{ padding: "8px 12px" }}>{h.total_liabilities ? `$${Number(h.total_liabilities).toLocaleString()}` : "—"}</td>
+                        <td style={{ padding: "8px 12px" }}>{h.operating_cash ? `$${Number(h.operating_cash).toLocaleString()}` : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
