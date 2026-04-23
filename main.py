@@ -35,77 +35,183 @@ class DocumentRequest(BaseModel):
 def root():
     return("Welcome to the Credit Risk Assesment API")
 
-# create a function to extract financial data from the etxt of a PDF for scoring.
-def extract_financials(text: str) -> dict:
+# make a function to extract relevant sections from the PDF text based on keywords
+def extract_section(text: str, keywords: list) -> str:
+    # This function will look for lines containing any of the keywords and return a block of text around those lines
+    lines = text.split('\n')
+    section_lines = []
+    in_section = False
+    for line in lines:
+        if any(kw in line.lower() for kw in keywords):
+            in_section = True
+        if in_section:
+            section_lines.append(line)
+        if len(section_lines) > 40:
+            break
+    return '\n'.join(section_lines)
+
+# create functions to analyze each section of the financial documents and extract key financial metrics, calculate a score based on those metrics, and return the findings in a structured format
+
+# make a function to analyze the income statement section
+def analyze_income_statement(text: str) -> dict:
     patterns = {
         "revenue":          r"(?:total revenue|net revenue|revenue)[^\d]*([\d,]+)",
         "net_income":       r"(?:net income|net profit|net earnings)[^\d]*([\d,]+)",
         "gross_profit":     r"(?:gross profit|gross income)[^\d]*([\d,]+)",
-        "total_debt":       r"(?:total debt|long.term debt|total liabilities)[^\d]*([\d,]+)",
-        "cash":             r"(?:cash and cash equivalents|cash)[^\d]*([\d,]+)",
         "operating_income": r"(?:operating income|income from operations)[^\d]*([\d,]+)",
+        "total_debt":       r"(?:total debt|total liabilities)[^\d]*([\d,]+)",
     }
-    results = {}
-    text_lower = text.lower()
+    data = {}
     for key, pattern in patterns.items():
-        match = re.search(pattern, text_lower)
-        if match:
-            results[key] = float(match.group(1).replace(",", ""))
-        else:
-            results[key] = None
-    return results
+        match = re.search(pattern, text.lower())
+        data[key] = float(match.group(1).replace(",", "")) if match else None
 
-# make a function that takes in the financial data and calculates a risk score, tier and reccomendation
-def score_from_financials(data: dict, business_name: str) -> dict:
     score = 50
-
+    findings = []
     if data["net_income"] is not None:
         if data["net_income"] > 0:
             score -= 20
+            findings.append(f"Profitable — net income ${data['net_income']:,.0f}")
         else:
             score += 30
-
+            findings.append(f"Unprofitable — net loss ${abs(data['net_income']):,.0f}")
     if data["revenue"] and data["total_debt"]:
-        debt_ratio = data["total_debt"] / data["revenue"]
-        if debt_ratio > 2:
-            score += 20
-        elif debt_ratio < 0.5:
-            score -= 10
+        ratio = data["total_debt"] / data["revenue"]
+        findings.append(f"Debt-to-revenue ratio: {ratio:.2f}")
+        score += 20 if ratio > 2 else (-10 if ratio < 0.5 else 0)
+    if data["gross_profit"]:
+        findings.append(f"Gross profit: ${data['gross_profit']:,.0f}")
 
-    if data["cash"] and data["total_debt"]:
-        if data["cash"] > data["total_debt"]:
-            score -= 15
+    return {"score": max(0, min(100, score)), "findings": findings, "raw": data}
 
-    score = max(0, min(100, score))
-
-    if score < 40:
-        tier = "low"
-        recommendation = "approve"
-    elif score < 70:
-        tier = "medium"
-        recommendation = "review"
-    else:
-        tier = "high"
-        recommendation = "reject"
-
-    findings = []
-    for k, v in data.items():
-        if v is not None:
-            findings.append(f"{k.replace('_', ' ').title()}: ${v:,.0f}")
-    if not findings:
-        findings = ["No structured financial data found in document"]
-
-    return {
-        "business_name": business_name,
-        "risk_score": score,
-        "risk_tier": tier,
-        "recommendation": recommendation,
-        "key_findings": findings,
-        "summary": f"{business_name} has a {tier} risk score of {score}/100. Recommendation: {recommendation}.",
-        "raw_data": data
+# make a function to analyze the balance sheet section
+def analyze_balance_sheet(text: str) -> dict:
+    patterns = {
+        "total_assets":        r"(?:total assets)[^\d]*([\d,]+)",
+        "total_liabilities":   r"(?:total liabilities)[^\d]*([\d,]+)",
+        "total_equity":        r"(?:total equity|stockholders equity|shareholders equity)[^\d]*([\d,]+)",
+        "current_assets":      r"(?:total current assets|current assets)[^\d]*([\d,]+)",
+        "current_liabilities": r"(?:total current liabilities|current liabilities)[^\d]*([\d,]+)",
+        "cash":                r"(?:cash and cash equivalents|cash)[^\d]*([\d,]+)",
     }
+    data = {}
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text.lower())
+        data[key] = float(match.group(1).replace(",", "")) if match else None
 
-# make a function that takes in a PDF file, extracts the text, and returns the financial data and risk assessment
+    score = 50
+    findings = []
+    if data["total_assets"] and data["total_liabilities"]:
+        ratio = data["total_liabilities"] / data["total_assets"]
+        findings.append(f"Debt-to-assets ratio: {ratio:.2f}")
+        score += 30 if ratio > 0.8 else (-20 if ratio < 0.4 else 0)
+    if data["current_assets"] and data["current_liabilities"]:
+        current_ratio = data["current_assets"] / data["current_liabilities"]
+        findings.append(f"Current ratio: {current_ratio:.2f}")
+        score += -20 if current_ratio > 2 else (20 if current_ratio < 1 else 0)
+    if data["total_equity"]:
+        findings.append(f"Total equity: ${data['total_equity']:,.0f}")
+
+    return {"score": max(0, min(100, score)), "findings": findings, "raw": data}
+
+# make a function to analyze the cash flow statement section
+def analyze_cash_flow(text: str) -> dict:
+    patterns = {
+        "operating_cash":  r"(?:net cash from operating|cash from operating activities)[^\d]*([\d,]+)",
+        "investing_cash":  r"(?:net cash from investing|cash from investing activities)[^\d]*([\d,]+)",
+        "financing_cash":  r"(?:net cash from financing|cash from financing activities)[^\d]*([\d,]+)",
+        "net_change_cash": r"(?:net increase in cash|net change in cash)[^\d]*([\d,]+)",
+        "closing_balance": r"(?:closing cash balance|ending cash balance)[^\d]*([\d,]+)",
+    }
+    data = {}
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text.lower())
+        data[key] = float(match.group(1).replace(",", "")) if match else None
+
+    score = 50
+    findings = []
+    if data["operating_cash"] is not None:
+        score += -20 if data["operating_cash"] > 0 else 25
+        findings.append(f"Operating cash flow: ${data['operating_cash']:,.0f}")
+    if data["net_change_cash"] is not None:
+        score += -10 if data["net_change_cash"] > 0 else 15
+        findings.append(f"Net change in cash: ${data['net_change_cash']:,.0f}")
+    if data["closing_balance"]:
+        findings.append(f"Closing cash balance: ${data['closing_balance']:,.0f}")
+
+    return {"score": max(0, min(100, score)), "findings": findings, "raw": data}
+
+# make a function to analyze the bank statement section
+def analyze_bank_statement(text: str) -> dict:
+    patterns = {
+        "opening_balance":   r"(?:opening balance|balance forward)[^\d]*([\d,]+)",
+        "closing_balance":   r"(?:closing balance|ending balance)[^\d]*([\d,]+)",
+        "total_deposits":    r"(?:total deposits|total credits)[^\d]*([\d,]+)",
+        "total_withdrawals": r"(?:total withdrawals|total debits)[^\d]*([\d,]+)",
+        "nsf_count":         r"(?:nsf|non.sufficient funds)[^\d]*(\d+)",
+    }
+    data = {}
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text.lower())
+        data[key] = float(match.group(1).replace(",", "")) if match else None
+
+    score = 50
+    findings = []
+    if data["nsf_count"] is not None:
+        score += int(data["nsf_count"]) * 10
+        findings.append(f"NSF count: {int(data['nsf_count'])}")
+    if data["closing_balance"] and data["opening_balance"]:
+        if data["closing_balance"] > data["opening_balance"]:
+            score -= 10
+            findings.append("Balance increased over period — positive sign")
+        else:
+            score += 20
+            findings.append("Balance decreased over period — monitor closely")
+    if data["total_deposits"]:
+        findings.append(f"Total deposits: ${data['total_deposits']:,.0f}")
+    if data["total_withdrawals"]:
+        findings.append(f"Total withdrawals: ${data['total_withdrawals']:,.0f}")
+
+    return {"score": max(0, min(100, score)), "findings": findings, "raw": data}
+
+# make a function to analyze the credit application section
+def analyze_credit_application(text: str) -> dict:
+    patterns = {
+        "requested_amount":  r"(?:requested amount|credit limit requested|loan amount)[^\d]*([\d,]+)",
+        "annual_income":     r"(?:annual income|annual revenue)[^\d]*([\d,]+)",
+        "existing_debt":     r"(?:existing debt|outstanding debt)[^\d]*([\d,]+)",
+        "years_in_business": r"(?:years in business|years operating)[^\d]*(\d+)",
+        "missed_payments":   r"(?:missed payments)[^\d]*(\d+)",
+    }
+    data = {}
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text.lower())
+        data[key] = float(match.group(1).replace(",", "")) if match else None
+
+    score = 50
+    findings = []
+    if data["existing_debt"] and data["annual_income"]:
+        dti = data["existing_debt"] / data["annual_income"]
+        findings.append(f"Debt-to-income ratio: {dti:.2f}")
+        score += 30 if dti > 0.5 else (-15 if dti < 0.2 else 0)
+    if data["years_in_business"] is not None:
+        findings.append(f"Years in business: {int(data['years_in_business'])}")
+        score += -15 if data["years_in_business"] > 5 else (15 if data["years_in_business"] < 2 else 0)
+    if data["missed_payments"] is not None:
+        score += int(data["missed_payments"]) * 10
+        findings.append(f"Missed payments: {int(data['missed_payments'])}")
+    if data["requested_amount"]:
+        findings.append(f"Requested credit: ${data['requested_amount']:,.0f}")
+
+    return {"score": max(0, min(100, score)), "findings": findings, "raw": data}
+
+# make a function to determine the overall risk tier based on the average score from all sections
+def get_tier(score):
+    if score < 40: return "low", "approve"
+    if score < 70: return "medium", "review"
+    return "high", "reject"
+
+# create an endpoint to upload a PDF document, extract the text, analyze the relevant sections, and return a structured response with the findings and an overall risk assessment
 @app.post("/analyze-pdf")
 async def analyze_pdf(file: UploadFile = File(...)):
     contents = await file.read()
@@ -122,16 +228,48 @@ async def analyze_pdf(file: UploadFile = File(...)):
     if not text.strip():
         return {"error": "Could not extract text from PDF"}
 
-    financials = extract_financials(text)
-    result = score_from_financials(financials, business_name)
+    sections = {}
+
+    if any(k in text.lower() for k in ["net income", "gross profit", "revenue", "operating income"]):
+        sections["income_statement"] = analyze_income_statement(text)
+
+    if any(k in text.lower() for k in ["total assets", "total liabilities", "total equity"]):
+        sections["balance_sheet"] = analyze_balance_sheet(text)
+
+    if any(k in text.lower() for k in ["operating activities", "investing activities", "financing activities"]):
+        sections["cash_flow"] = analyze_cash_flow(text)
+
+    if any(k in text.lower() for k in ["total deposits", "total withdrawals", "balance forward", "nsf"]):
+        sections["bank_statement"] = analyze_bank_statement(text)
+
+    if any(k in text.lower() for k in ["credit limit requested", "requested amount", "years in business"]):
+        sections["credit_application"] = analyze_credit_application(text)
+
+    if not sections:
+        return {"error": "No recognizable financial data found in document"}
+
+    overall_score = int(sum(s["score"] for s in sections.values()) / len(sections))
+    overall_tier, overall_recommendation = get_tier(overall_score)
 
     global next_id
-    result["id"] = next_id
+    result = {
+        "id": next_id,
+        "business_name": business_name,
+        "overall_score": overall_score,
+        "overall_tier": overall_tier,
+        "overall_recommendation": overall_recommendation,
+        "sections": {
+            k: {
+                "score": v["score"],
+                "tier": get_tier(v["score"])[0],
+                "findings": v["findings"]
+            }
+            for k, v in sections.items()
+        }
+    }
     next_id += 1
     application_data[result["id"]] = result
-
     return result
-
 
 # create an endpoint to apply for credit based on the document analysis, this will take in the same information as the DocumentRequest model, calculate a credit score and risk tier, and return a response with the application ID, status, credit score, and risk tier
 @app.post("/apply")
