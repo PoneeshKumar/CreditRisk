@@ -181,7 +181,7 @@ def analyze_credit_application(text: str) -> dict:
         "annual_income":     r"(?:annual income|annual revenue)[^\d]*([\d,]+)",
         "existing_debt":     r"(?:existing debt|outstanding debt)[^\d]*([\d,]+)",
         "years_in_business": r"(?:years in business|years operating)[^\d]*(\d+)",
-        "missed_payments":   r"(?:missed payments)[^\d]*(\d+)",
+        "missed_payments": r"missed payments[^\d]*(\d+)",
     }
     data = {}
     for key, pattern in patterns.items():
@@ -193,12 +193,13 @@ def analyze_credit_application(text: str) -> dict:
     if data["existing_debt"] and data["annual_income"]:
         dti = data["existing_debt"] / data["annual_income"]
         findings.append(f"Debt-to-income ratio: {dti:.2f}")
-        score += 30 if dti > 0.5 else (-15 if dti < 0.2 else 0)
+        # 0.27 is healthy, only penalize above 0.5
+        score += 25 if dti > 0.5 else (-20 if dti < 0.3 else 0)
     if data["years_in_business"] is not None:
         findings.append(f"Years in business: {int(data['years_in_business'])}")
-        score += -15 if data["years_in_business"] > 5 else (15 if data["years_in_business"] < 2 else 0)
-    if data["missed_payments"] is not None:
-        score += int(data["missed_payments"]) * 10
+        score += -20 if data["years_in_business"] > 5 else (20 if data["years_in_business"] < 2 else 0)
+    if data["missed_payments"] is not None and data["missed_payments"] > 0:
+        score += int(data["missed_payments"]) * 15
         findings.append(f"Missed payments: {int(data['missed_payments'])}")
     if data["requested_amount"]:
         findings.append(f"Requested credit: ${data['requested_amount']:,.0f}")
