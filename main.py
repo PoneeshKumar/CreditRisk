@@ -6,8 +6,7 @@ import os
 import pdfplumber
 import json
 import io
-
-from typer import prompt
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -15,6 +14,12 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Initialize FastAPI app
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 application_data = {}
 next_id = 1
@@ -80,18 +85,16 @@ async def analyze_pdf(file: UploadFile = File(...)):
 # create an endpoint to apply for credit based on the document analysis, this will take in the same information as the DocumentRequest model, calculate a credit score and risk tier, and return a response with the application ID, status, credit score, and risk tier
 @app.post("/apply")
 def apply(application: DocumentRequest):
-    # assign next id to the application and increment the next_id variable for the next application
     global next_id
     application_id = next_id
     next_id += 1
-    # assign the application data to the application_data dictionary with the application ID as the key, and include the calculated credit score and risk tier in the application data
-    application_data = application.dict()
-    application_data["id"] = application_id
-    application_data["status"] = "pending"
-    application_data["credit score"] = calculate_credit_score(application)
-    application_data["risk_tier"] = get_risk_tier(application_data["credit_score"])
-    application_data[application_id] = application_data
-    return {"application_id": application_id, "status": "pending", "credit_score": application_data["credit_score"], "risk_tier": application_data["risk_tier"]}
+    app_record = application.dict()
+    app_record["id"] = application_id
+    app_record["status"] = "pending"
+    app_record["credit_score"] = calculate_credit_score(application)
+    app_record["risk_tier"] = get_risk_tier(app_record["credit_score"])
+    application_data[application_id] = app_record
+    return {"application_id": application_id, "status": "pending", "credit_score": app_record["credit_score"], "risk_tier": app_record["risk_tier"]}
 
 
 
