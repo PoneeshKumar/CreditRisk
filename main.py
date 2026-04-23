@@ -412,7 +412,7 @@ async def analyze_pdf(file: UploadFile = File(...), user_id: str = Depends(get_u
             "cash_flow":        cashflow_by_year.get(year, {}),
             "bank_statement":   bank_by_year.get(year, {}),
             "credit_application": credit_by_year.get(year, {}),
-        })
+        }, user_id)
 
         results_by_year[year] = result
 
