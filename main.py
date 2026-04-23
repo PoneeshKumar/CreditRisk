@@ -181,13 +181,13 @@ def analyze_credit_application(text: str) -> dict:
         "annual_income":     r"(?:annual income|annual revenue)[^\d]*([\d,]+)",
         "existing_debt":     r"(?:existing debt|outstanding debt)[^\d]*([\d,]+)",
         "years_in_business": r"(?:years in business|years operating)[^\d]*(\d+)",
-        "missed_payments": r"missed payments[^\d]*(\d+)",
+        "missed_payments": r"missed payments[^:\n]*:\s*(\d+)",
     }
     data = {}
     for key, pattern in patterns.items():
         match = re.search(pattern, text.lower())
         data[key] = float(match.group(1).replace(",", "")) if match else None
-
+    print("Credit app data:", data)
     score = 50
     findings = []
     if data["existing_debt"] and data["annual_income"]:
