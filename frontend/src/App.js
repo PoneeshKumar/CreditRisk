@@ -8,518 +8,533 @@ import {
 
 const API = "http://localhost:8000";
 
-const T = {
-  bg:       "#0A0E1A",
-  surface:  "#111827",
-  card:     "#161D2E",
-  border:   "#1E2D45",
-  muted:    "#2A3A55",
-  text:     "#E8EEF8",
-  sub:      "#7A8FAD",
-  low:      "#22D3A0",
-  lowBg:    "rgba(34,211,160,0.1)",
-  medium:   "#F59E0B",
-  medBg:    "rgba(245,158,11,0.1)",
-  high:     "#F43F5E",
-  highBg:   "rgba(244,63,94,0.1)",
-  accent:   "#4F8EF7",
-  accentBg: "rgba(79,142,247,0.1)",
-  purple:   "#A78BFA",
+// Warm brutalist palette — amber/cream/ink
+const C = {
+  bg:       "#F5F0E8",
+  paper:    "#FFFDF7",
+  ink:      "#1C1A14",
+  inkLight: "#3D3A30",
+  rule:     "#D4C9B0",
+  faint:    "#EDE8DC",
+  amber:    "#C17D00",
+  amberBg:  "#FFF8E6",
+  green:    "#1A6B3C",
+  greenBg:  "#EBF7F0",
+  red:      "#B02020",
+  redBg:    "#FBF0F0",
+  blue:     "#1A3A6B",
+  blueBg:   "#EBF0FB",
+  sub:      "#7A7260",
+  hint:     "#A89E8A",
 };
 
-const riskColor = t => t==="low"?T.low:t==="medium"?T.medium:T.high;
-const riskBg    = t => t==="low"?T.lowBg:t==="medium"?T.medBg:T.highBg;
+const rc   = t => t==="low"?C.green:t==="medium"?C.amber:C.red;
+const rbg  = t => t==="low"?C.greenBg:t==="medium"?C.amberBg:C.redBg;
 
-const SECTION_META = {
-  income_statement:   { label:"Income",       icon:"📈" },
-  balance_sheet:      { label:"Balance Sheet", icon:"⚖️" },
-  cash_flow:          { label:"Cash Flow",     icon:"💧" },
-  bank_statement:     { label:"Bank",          icon:"🏦" },
-  credit_application: { label:"Credit App",   icon:"📋" },
+const SM = {
+  income_statement:   { short:"INC",  label:"Income Statement"   },
+  balance_sheet:      { short:"BAL",  label:"Balance Sheet"       },
+  cash_flow:          { short:"CF",   label:"Cash Flow"           },
+  bank_statement:     { short:"BNK",  label:"Bank Statement"      },
+  credit_application: { short:"CRD",  label:"Credit Application"  },
 };
 
-function ScoreArc({ score, size=140, animate=true }) {
-  const [d, setD] = useState(animate ? 0 : score);
-  useEffect(() => {
-    if (!animate) { setD(score); return; }
+const LCOLORS = [C.blue, C.green, C.amber, C.red, "#6B3A8A"];
+
+// Score ring — stark, no frills
+function Ring({ score, size=120, animate=true }) {
+  const [d,setD] = useState(animate?0:score);
+  useEffect(()=>{
+    if(!animate){setD(score);return;}
     let s=null;
-    const step = ts => {
-      if (!s) s=ts;
-      const p = Math.min((ts-s)/900,1);
-      setD(Math.round(score*(1-Math.pow(1-p,3))));
-      if (p<1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, [score, animate]);
-  const tier = score<40?"low":score<70?"medium":"high";
-  const color = riskColor(tier);
-  const r=size*0.38, circ=2*Math.PI*r, offset=circ-(d/100)*circ;
+    const f=ts=>{if(!s)s=ts;const p=Math.min((ts-s)/1100,1);setD(Math.round(score*(1-Math.pow(1-p,3))));if(p<1)requestAnimationFrame(f);};
+    requestAnimationFrame(f);
+  },[score,animate]);
+  const color=rc(score<40?"low":score<70?"medium":"high");
+  const r=size*0.38,circ=2*Math.PI*r,off=circ-(d/100)*circ;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <defs><filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/>
-        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={T.border} strokeWidth={size*0.07}/>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={size*0.07}
-        strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
-        transform={`rotate(-90 ${size/2} ${size/2})`} filter="url(#glow)"
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.faint} strokeWidth={size*0.06}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={size*0.06}
+        strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="square"
+        transform={`rotate(-90 ${size/2} ${size/2})`}
         style={{transition:animate?"none":"stroke-dashoffset 0.8s ease"}}/>
-      <text x={size/2} y={size/2-4} textAnchor="middle" fontSize={size*0.26}
-        fontWeight="700" fill={color} fontFamily="'Space Grotesk',monospace">{d}</text>
-      <text x={size/2} y={size/2+size*0.18} textAnchor="middle" fontSize={size*0.09}
-        fill={T.sub} fontFamily="'Inter',sans-serif" letterSpacing="0.05em">RISK SCORE</text>
+      <text x={size/2} y={size/2+2} textAnchor="middle" fontSize={size*0.28}
+        fontWeight="700" fill={color} fontFamily="'Bebas Neue',sans-serif"
+        letterSpacing="0.02em">{d}</text>
+      <text x={size/2} y={size/2+size*0.22} textAnchor="middle" fontSize={size*0.085}
+        fill={C.hint} fontFamily="'IBM Plex Mono',monospace" letterSpacing="0.1em">SCORE</text>
     </svg>
   );
 }
 
-function DropZone({ file, setFile }) {
+function Tag({ tier, sm }) {
+  const color=rc(tier);
+  const bg=rbg(tier);
+  return (
+    <span style={{
+      display:"inline-flex",alignItems:"center",gap:4,
+      padding:sm?"1px 6px":"3px 8px",
+      fontSize:sm?9:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",
+      background:bg,color:color,
+      border:`1px solid ${color}44`,
+      fontFamily:"'IBM Plex Mono',monospace",
+      borderRadius:2,
+    }}>▪ {tier}</span>
+  );
+}
+
+function Drop({ file, setFile }) {
   const [drag,setDrag]=useState(false);
   const ref=useRef();
   return (
-    <div onDragOver={e=>{e.preventDefault();setDrag(true);}}
+    <div
+      onDragOver={e=>{e.preventDefault();setDrag(true);}}
       onDragLeave={()=>setDrag(false)}
       onDrop={e=>{e.preventDefault();setDrag(false);const f=e.dataTransfer.files[0];if(f?.type==="application/pdf")setFile(f);}}
       onClick={()=>ref.current.click()}
-      style={{border:`2px dashed ${drag?T.accent:file?T.low:T.border}`,borderRadius:16,
-        padding:"44px 24px",textAlign:"center",cursor:"pointer",
-        background:drag?T.accentBg:file?T.lowBg:T.surface,
-        transition:"all 0.2s",marginBottom:20,position:"relative",overflow:"hidden"}}>
-      {!file&&<div style={{position:"absolute",inset:0,opacity:0.03,
-        backgroundImage:"repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 40px)"}}/>}
+      style={{
+        border:`2px solid ${drag?C.blue:file?C.green:C.rule}`,
+        padding:"40px 28px",textAlign:"center",cursor:"pointer",
+        background:drag?C.blueBg:file?C.greenBg:C.faint,
+        transition:"all 0.15s",marginBottom:20,
+        position:"relative",
+      }}>
       <input ref={ref} type="file" accept=".pdf"
         onChange={e=>setFile(e.target.files[0])} style={{display:"none"}}/>
-      <div style={{fontSize:36,marginBottom:12}}>{file?"✓":"⬆"}</div>
-      <p style={{margin:"0 0 6px",fontSize:16,fontWeight:600,
-        color:file?T.low:T.text,fontFamily:"'Space Grotesk',sans-serif"}}>
-        {file?file.name:"Drop financial PDF here"}
+      {/* corner ticks */}
+      {[["0,0","10,0 0,0 0,10"],["calc(100% - 0px),0","calc(100% - 10px),0 calc(100%),0 calc(100%),10px"],
+        ["0,calc(100% - 0px)","0,calc(100% - 10px) 0,100% 10px,100%"],
+        ["calc(100%),calc(100%)","calc(100% - 10px),100% 100%,100% 100%,calc(100% - 10px)"]
+      ].map(([pos,pts],i)=>(
+        <svg key={i} width="12" height="12" style={{position:"absolute",
+          top:i<2?6:"auto",bottom:i>=2?6:"auto",
+          left:i%2===0?6:"auto",right:i%2===1?6:"auto"}}>
+          <polyline points={i===0?"10,2 2,2 2,10":i===1?"2,2 10,2 10,10":i===2?"2,2 2,10 10,10":"10,2 10,10 2,10"}
+            fill="none" stroke={drag?C.blue:file?C.green:C.hint} strokeWidth="1.5"/>
+        </svg>
+      ))}
+      <p style={{margin:"0 0 6px",fontSize:15,fontWeight:700,color:file?C.green:C.ink,
+        fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.06em",fontSize:18}}>
+        {file?file.name:"DROP FINANCIAL PDF"}
       </p>
-      <p style={{margin:0,fontSize:13,color:T.sub}}>
-        {file?`${(file.size/1024).toFixed(1)} KB · Fiscal years auto-detected`
-          :"Income statements · Balance sheets · Cash flow · Bank statements"}
+      <p style={{margin:0,fontSize:10,color:C.hint,fontFamily:"'IBM Plex Mono',monospace",
+        letterSpacing:"0.08em"}}>
+        {file?`${(file.size/1024).toFixed(1)} KB  ·  YEARS AUTO-DETECTED`
+          :"INCOME STATEMENTS  ·  BALANCE SHEETS  ·  CASH FLOW  ·  BANK STATEMENTS"}
       </p>
     </div>
   );
 }
 
-function ChartTooltip({ active, payload, label }) {
-  if (!active||!payload?.length) return null;
+function ChartTip({ active, payload, label }) {
+  if(!active||!payload?.length) return null;
   return (
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 14px"}}>
-      <p style={{color:T.sub,fontSize:11,marginBottom:6,fontFamily:"'Space Grotesk',monospace",letterSpacing:"0.05em"}}>FY {label}</p>
+    <div style={{background:C.ink,border:`1px solid ${C.inkLight}`,padding:"8px 12px",
+      fontFamily:"'IBM Plex Mono',monospace",borderRadius:2}}>
+      <p style={{color:C.hint,fontSize:9,marginBottom:5,letterSpacing:"0.1em"}}>FY {label}</p>
       {payload.map((p,i)=>(
         <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-          <div style={{width:8,height:8,borderRadius:2,background:p.color}}/>
-          <span style={{color:T.text,fontSize:13,fontWeight:600}}>{p.name}: {p.value}</span>
+          <div style={{width:6,height:6,background:p.color,borderRadius:1}}/>
+          <span style={{color:"#fff",fontSize:11,fontWeight:500}}>{p.name}: {p.value}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function SectionCard({ skey, section, delay=0 }) {
-  const meta=SECTION_META[skey]||{label:skey,icon:"📊"};
-  const color=riskColor(section.tier);
-  const pct=section.score;
+function SCard({ skey, s, delay }) {
+  const meta=SM[skey]||{short:"?",label:skey};
+  const color=rc(s.tier);
   return (
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:20,
-      animation:`fadeUp 0.4s ease ${delay}ms both`,position:"relative",overflow:"hidden"}}>
-      <div style={{position:"absolute",top:0,left:0,right:0,height:3,
-        background:`linear-gradient(90deg,${color} ${pct}%,transparent ${pct}%)`}}/>
+    <div style={{
+      background:C.paper,borderTop:`3px solid ${color}`,
+      border:`1px solid ${C.rule}`,borderTop:`3px solid ${color}`,
+      padding:"20px 18px",
+      animation:`riseIn 0.5s ease ${delay}ms both`,
+    }}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
         <div>
-          <p style={{fontSize:11,color:T.sub,marginBottom:4,letterSpacing:"0.08em",
-            fontFamily:"'Space Grotesk',monospace"}}>{meta.icon} {meta.label.toUpperCase()}</p>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:28,fontWeight:700,color,fontFamily:"'Space Grotesk',monospace"}}>{pct}</span>
-            <span style={{fontSize:12,color:T.sub}}>/100</span>
+          <p style={{fontSize:9,color:C.hint,marginBottom:5,letterSpacing:"0.14em",
+            fontFamily:"'IBM Plex Mono',monospace"}}>{meta.short}</p>
+          <div style={{display:"flex",alignItems:"baseline",gap:4}}>
+            <span style={{fontSize:36,fontWeight:700,color,lineHeight:1,
+              fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.02em"}}>{s.score}</span>
+            <span style={{fontSize:11,color:C.hint,fontFamily:"'IBM Plex Mono',monospace"}}>/100</span>
           </div>
         </div>
-        <span style={{padding:"4px 10px",borderRadius:99,fontSize:11,fontWeight:600,
-          background:riskBg(section.tier),color,border:`1px solid ${color}22`,
-          letterSpacing:"0.06em",textTransform:"uppercase"}}>{section.tier}</span>
+        <Tag tier={s.tier} sm/>
       </div>
-      <div style={{height:3,background:T.border,borderRadius:99,marginBottom:14}}>
-        <div style={{height:"100%",borderRadius:99,background:color,
-          width:`${pct}%`,transition:"width 0.8s ease"}}/>
+      <div style={{height:2,background:C.faint,marginBottom:14}}>
+        <div style={{height:"100%",background:color,
+          width:`${s.score}%`,transition:"width 1.2s cubic-bezier(.22,1,.36,1)"}}/>
       </div>
-      <ul style={{margin:0,padding:0,listStyle:"none"}}>
-        {section.findings.slice(0,3).map((f,i)=>(
-          <li key={i} style={{fontSize:12,color:T.sub,padding:"3px 0",
-            borderBottom:i<section.findings.length-1?`1px solid ${T.border}`:"none",
-            display:"flex",alignItems:"flex-start",gap:6}}>
-            <span style={{color,marginTop:1}}>·</span>{f}
-          </li>
+      <div style={{borderTop:`1px solid ${C.faint}`,paddingTop:12}}>
+        {s.findings.slice(0,3).map((f,i)=>(
+          <p key={i} style={{fontSize:10,color:C.sub,marginBottom:4,lineHeight:1.6,
+            fontFamily:"'IBM Plex Mono',monospace",
+            paddingLeft:10,borderLeft:`2px solid ${color}44`}}>{f}</p>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
 
-// ── Auth screen ───────────────────────────────────────────────────────────────
 function AuthScreen() {
-  const [mode,setMode]     = useState("login");
-  const [email,setEmail]   = useState("");
-  const [pass,setPass]     = useState("");
-  const [err,setErr]       = useState(null);
-  const [msg,setMsg]       = useState(null);
-  const [busy,setBusy]     = useState(false);
-
-  const handle = async () => {
-    setBusy(true); setErr(null); setMsg(null);
-    if (mode==="login") {
-      const {error} = await supabase.auth.signInWithPassword({email,password:pass});
-      if (error) setErr(error.message);
-    } else {
-      const {error} = await supabase.auth.signUp({email,password:pass});
-      if (error) setErr(error.message);
-      else setMsg("Check your email to confirm your account.");
-    }
+  const [mode,setMode]=useState("login");
+  const [email,setEmail]=useState("");
+  const [pass,setPass]=useState("");
+  const [err,setErr]=useState(null);
+  const [msg,setMsg]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const go=async()=>{
+    setBusy(true);setErr(null);setMsg(null);
+    if(mode==="login"){const{error}=await supabase.auth.signInWithPassword({email,password:pass});if(error)setErr(error.message);}
+    else{const{error}=await supabase.auth.signUp({email,password:pass});if(error)setErr(error.message);else setMsg("Check your email to confirm.");}
     setBusy(false);
   };
-
   return (
-    <div style={{minHeight:"100vh",background:T.bg,display:"flex",
-      alignItems:"center",justifyContent:"center",fontFamily:"'Inter',sans-serif"}}>
-      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:24,
-        padding:40,width:"100%",maxWidth:420,
-        boxShadow:"0 24px 64px rgba(0,0,0,0.4)"}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{width:44,height:44,borderRadius:13,background:T.accent,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:22,color:"#fff",margin:"0 auto 16px"}}>◈</div>
-          <h1 style={{fontSize:24,fontWeight:700,fontFamily:"'Space Grotesk',sans-serif",
-            letterSpacing:"-0.02em",color:T.text,marginBottom:6}}>CreditLens</h1>
-          <p style={{fontSize:14,color:T.sub}}>
-            {mode==="login"?"Sign in to your account":"Create a new account"}
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",
+      alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Mono',monospace",
+      backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px),
+        repeating-linear-gradient(90deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px)`}}>
+      <div style={{width:"100%",maxWidth:380,padding:"0 24px"}}>
+        {/* Logo */}
+        <div style={{marginBottom:36,textAlign:"center"}}>
+          <div style={{display:"inline-block",borderBottom:`3px solid ${C.ink}`,paddingBottom:8,marginBottom:8}}>
+            <span style={{fontSize:32,fontWeight:700,color:C.ink,fontFamily:"'Bebas Neue',sans-serif",
+              letterSpacing:"0.08em"}}>CREDITLENS</span>
+          </div>
+          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.16em"}}>
+            FINANCIAL RISK INTELLIGENCE PLATFORM
           </p>
         </div>
 
-        <div style={{marginBottom:12}}>
-          <label style={{fontSize:12,color:T.sub,display:"block",marginBottom:6,
-            letterSpacing:"0.05em"}}>EMAIL</label>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-            placeholder="you@company.com"
-            style={{width:"100%",padding:"12px 14px",borderRadius:10,
-              border:`1px solid ${T.border}`,background:T.surface,
-              color:T.text,fontSize:14,fontFamily:"'Inter',sans-serif",
-              outline:"none",transition:"border 0.15s"}}
-            onFocus={e=>e.target.style.borderColor=T.accent}
-            onBlur={e=>e.target.style.borderColor=T.border}/>
+        <div style={{background:C.paper,border:`1px solid ${C.rule}`,padding:28,
+          boxShadow:`4px 4px 0 ${C.rule}`}}>
+          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.16em",marginBottom:20}}>
+            {mode==="login"?"— SIGN IN":"— CREATE ACCOUNT"}
+          </p>
+          {[["EMAIL","email","you@company.com",email,setEmail],
+            ["PASSWORD","password","••••••••",pass,setPass]].map(([label,type,ph,val,set],i)=>(
+            <div key={label} style={{marginBottom:i===0?14:18}}>
+              <label style={{fontSize:9,color:C.hint,display:"block",marginBottom:5,
+                letterSpacing:"0.14em"}}>{label}</label>
+              <input type={type} value={val}
+                onChange={e=>set(e.target.value)}
+                placeholder={ph}
+                onKeyDown={e=>e.key==="Enter"&&go()}
+                style={{width:"100%",padding:"10px 12px",border:`1px solid ${C.rule}`,
+                  background:C.faint,color:C.ink,fontSize:12,
+                  fontFamily:"'IBM Plex Mono',monospace",outline:"none",
+                  transition:"border 0.15s",borderRadius:0}}
+                onFocus={e=>e.target.style.borderColor=C.ink}
+                onBlur={e=>e.target.style.borderColor=C.rule}/>
+            </div>
+          ))}
+          {err&&<p style={{fontSize:10,color:C.red,marginBottom:12,letterSpacing:"0.04em"}}>{err}</p>}
+          {msg&&<p style={{fontSize:10,color:C.green,marginBottom:12,letterSpacing:"0.04em"}}>{msg}</p>}
+          <button onClick={go} disabled={busy||!email||!pass} style={{
+            width:"100%",padding:"12px",border:"none",
+            background:email&&pass?C.ink:C.rule,
+            color:email&&pass?C.bg:C.hint,
+            fontSize:11,fontWeight:700,cursor:email&&pass?"pointer":"not-allowed",
+            fontFamily:"'IBM Plex Mono',monospace",letterSpacing:"0.12em",
+            transition:"all 0.15s",marginBottom:16,borderRadius:0}}>
+            {busy?"PROCESSING...":(mode==="login"?"SIGN IN →":"CREATE ACCOUNT →")}
+          </button>
+          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.08em",textAlign:"center"}}>
+            {mode==="login"?"NO ACCOUNT? ":"HAVE ONE? "}
+            <span onClick={()=>{setMode(mode==="login"?"signup":"login");setErr(null);setMsg(null);}}
+              style={{color:C.blue,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:3}}>
+              {mode==="login"?"SIGN UP":"SIGN IN"}
+            </span>
+          </p>
         </div>
-
-        <div style={{marginBottom:20}}>
-          <label style={{fontSize:12,color:T.sub,display:"block",marginBottom:6,
-            letterSpacing:"0.05em"}}>PASSWORD</label>
-          <input type="password" value={pass} onChange={e=>setPass(e.target.value)}
-            placeholder="••••••••"
-            onKeyDown={e=>e.key==="Enter"&&handle()}
-            style={{width:"100%",padding:"12px 14px",borderRadius:10,
-              border:`1px solid ${T.border}`,background:T.surface,
-              color:T.text,fontSize:14,fontFamily:"'Inter',sans-serif",
-              outline:"none",transition:"border 0.15s"}}
-            onFocus={e=>e.target.style.borderColor=T.accent}
-            onBlur={e=>e.target.style.borderColor=T.border}/>
-        </div>
-
-        {err && <p style={{fontSize:13,color:T.high,marginBottom:14,textAlign:"center"}}>{err}</p>}
-        {msg && <p style={{fontSize:13,color:T.low,marginBottom:14,textAlign:"center"}}>{msg}</p>}
-
-        <button onClick={handle} disabled={busy||!email||!pass} style={{
-          width:"100%",padding:"13px",borderRadius:11,border:"none",
-          background:email&&pass?T.accent:T.muted,
-          color:email&&pass?T.text:T.sub,
-          fontSize:15,fontWeight:600,cursor:email&&pass?"pointer":"not-allowed",
-          fontFamily:"'Space Grotesk',sans-serif",transition:"all 0.2s",
-          boxShadow:email&&pass?"0 4px 20px rgba(79,142,247,0.3)":"none",
-          marginBottom:16}}>
-          {busy?"...":(mode==="login"?"Sign in →":"Create account →")}
-        </button>
-
-        <p style={{textAlign:"center",fontSize:13,color:T.sub}}>
-          {mode==="login"?"Don't have an account? ":"Already have an account? "}
-          <span onClick={()=>{setMode(mode==="login"?"signup":"login");setErr(null);setMsg(null);}}
-            style={{color:T.accent,cursor:"pointer",fontWeight:600}}>
-            {mode==="login"?"Sign up":"Sign in"}
-          </span>
-        </p>
       </div>
     </div>
   );
 }
 
-// ── Main app ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [session,setSession]     = useState(null);
-  const [authReady,setAuthReady] = useState(false);
-  const [file,setFile]           = useState(null);
-  const [result,setResult]       = useState(null);
-  const [loading,setLoading]     = useState(false);
-  const [error,setError]         = useState(null);
-  const [history,setHistory]     = useState([]);
-  const [companies,setCompanies] = useState([]);
-  const [view,setView]           = useState("upload");
-  const [activeYear,setActiveYear] = useState(null);
-  const [historyCompany,setHistoryCompany] = useState(null);
+  const [session,setSess]   = useState(null);
+  const [ready,setReady]    = useState(false);
+  const [file,setFile]      = useState(null);
+  const [result,setResult]  = useState(null);
+  const [loading,setLoad]   = useState(false);
+  const [error,setError]    = useState(null);
+  const [history,setHist]   = useState([]);
+  const [cos,setCos]        = useState([]);
+  const [view,setView]      = useState("upload");
+  const [yr,setYr]          = useState(null);
+  const [hco,setHco]        = useState(null);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({data:{session}}) => {
-      setSession(session);
-      setAuthReady(true);
-    });
-    const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session) => {
-      setSession(session);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{setSess(session);setReady(true);});
+    const{data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setSess(s));
+    return()=>subscription.unsubscribe();
+  },[]);
 
-  useEffect(() => {
-    if (session) {
-      axios.get(`${API}/companies`, {
-        headers:{Authorization:`Bearer ${session.access_token}`}
-      }).then(r=>setCompanies(r.data)).catch(()=>{});
-    }
-  }, [result, session]);
+  useEffect(()=>{
+    if(session) axios.get(`${API}/companies`,{headers:{Authorization:`Bearer ${session.access_token}`}})
+      .then(r=>setCos(r.data)).catch(()=>{});
+  },[result,session]);
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    setResult(null); setFile(null); setCompanies([]); setHistory([]);
-  };
+  const logout=async()=>{await supabase.auth.signOut();setResult(null);setFile(null);setCos([]);setHist([]);};
 
-  const upload = async () => {
-    if (!file||!session) return;
-    setLoading(true); setError(null); setResult(null); setHistory([]);
-    const fd=new FormData(); fd.append("file",file);
-    try {
-      const res = await axios.post(`${API}/analyze-pdf`, fd, {
-        headers:{Authorization:`Bearer ${session.access_token}`}
-      });
+  const upload=async()=>{
+    if(!file||!session)return;
+    setLoad(true);setError(null);setResult(null);setHist([]);
+    const fd=new FormData();fd.append("file",file);
+    try{
+      const res=await axios.post(`${API}/analyze-pdf`,fd,{headers:{Authorization:`Bearer ${session.access_token}`}});
       setResult(res.data);
       const yrs=Object.keys(res.data.results||{}).map(Number).sort((a,b)=>b-a);
-      if (yrs.length) setActiveYear(yrs[0]);
-      if (res.data.company_id) loadHistory(res.data.company_id);
-    } catch { setError("Upload failed — make sure backend is running on port 8000."); }
-    finally { setLoading(false); }
+      if(yrs.length)setYr(yrs[0]);
+      if(res.data.company_id)loadH(res.data.company_id);
+    }catch{setError("Upload failed — check that backend is running on port 8000.");}
+    finally{setLoad(false);}
   };
 
-  const loadHistory = async id => {
-    const res = await axios.get(`${API}/companies/${id}/history`, {
-      headers:{Authorization:`Bearer ${session.access_token}`}
-    });
-    setHistory(res.data);
+  const loadH=async id=>{
+    const res=await axios.get(`${API}/companies/${id}/history`,{headers:{Authorization:`Bearer ${session.access_token}`}});
+    setHist(res.data);
   };
 
-  if (!authReady) return (
-    <div style={{minHeight:"100vh",background:T.bg,display:"flex",
-      alignItems:"center",justifyContent:"center"}}>
-      <div style={{width:40,height:40,border:`3px solid ${T.border}`,
-        borderTopColor:T.accent,borderRadius:"50%",
-        animation:"spin 0.7s linear infinite"}}/>
-      <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
+  if(!ready) return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:C.hint,letterSpacing:"0.1em",
+        animation:"blink 1s step-end infinite"}}>LOADING...</p>
+      <style>{`@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}`}</style>
     </div>
   );
+  if(!session) return <AuthScreen/>;
 
-  if (!session) return <AuthScreen/>;
+  const yrs=result?.results
+    ?Object.entries(result.results).sort(([a],[b])=>Number(b)-Number(a)).map(([y,r])=>({year:Number(y),...r})):[];
+  const cur=yrs.find(r=>r.year===yr)||yrs[0];
+  const trend=[...yrs].reverse().map(r=>({year:r.year,score:r.overall_score,
+    ...Object.fromEntries(Object.entries(r.sections||{}).map(([k,v])=>[SM[k]?.short||k,v.score]))}));
+  const htd=history.map(h=>({year:h.fiscal_year,score:h.overall_score,
+    INC:h.income_score,BAL:h.balance_score,CF:h.cashflow_score}));
 
-  const yearResults = result?.results
-    ? Object.entries(result.results).sort(([a],[b])=>Number(b)-Number(a)).map(([y,r])=>({year:Number(y),...r}))
-    : [];
-  const currentYear = yearResults.find(r=>r.year===activeYear)||yearResults[0];
-  const trendData = [...yearResults].reverse().map(r=>({
-    year:r.year, score:r.overall_score,
-    ...Object.fromEntries(Object.entries(r.sections||{}).map(([k,v])=>[SECTION_META[k]?.label||k,v.score]))
-  }));
-  const historyTrend = history.map(h=>({
-    year:h.fiscal_year,score:h.overall_score,
-    income:h.income_score,balance:h.balance_score,cashflow:h.cashflow_score
-  }));
-
-  return (
+  return(
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background:${T.bg};color:${T.text};font-family:'Inter',sans-serif;min-height:100vh;}
-        ::-webkit-scrollbar{width:5px;}
-        ::-webkit-scrollbar-thumb{background:${T.muted};border-radius:99px;}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
-        @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
-        @keyframes spin{to{transform:rotate(360deg);}}
-        .btn-primary{background:${T.accent};color:#fff;border:none;border-radius:12px;
-          padding:14px 28px;font-size:15px;font-weight:600;cursor:pointer;
-          font-family:'Space Grotesk',sans-serif;transition:all 0.2s;width:100%;}
-        .btn-primary:hover{opacity:0.9;transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,142,247,0.3);}
-        .btn-primary:disabled{background:${T.muted};color:${T.sub};cursor:not-allowed;transform:none;box-shadow:none;}
-        .btn-ghost{background:transparent;color:${T.sub};border:1px solid ${T.border};
-          border-radius:10px;padding:8px 16px;font-size:13px;font-weight:500;
-          cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;}
-        .btn-ghost:hover{color:${T.text};border-color:${T.muted};}
-        .nav-item{background:transparent;border:none;padding:8px 16px;border-radius:10px;
-          font-size:14px;font-weight:500;cursor:pointer;color:${T.sub};
-          font-family:'Inter',sans-serif;transition:all 0.15s;}
-        .nav-item:hover{color:${T.text};}
-        .nav-item.active{background:${T.surface};color:${T.text};}
-        .company-row{display:flex;align-items:center;justify-content:space-between;
-          padding:16px 20px;border-radius:14px;cursor:pointer;
-          border:1px solid ${T.border};background:${T.card};transition:all 0.2s;margin-bottom:10px;}
-        .company-row:hover{border-color:${T.accent}44;background:${T.surface};transform:translateX(4px);}
+        body{background:${C.bg};color:${C.ink};font-family:'IBM Plex Mono',monospace;min-height:100vh;
+          background-image:repeating-linear-gradient(0deg,transparent,transparent 39px,${C.rule}33 39px,${C.rule}33 40px),
+            repeating-linear-gradient(90deg,transparent,transparent 39px,${C.rule}33 39px,${C.rule}33 40px);}
+        ::-webkit-scrollbar{width:4px;}
+        ::-webkit-scrollbar-thumb{background:${C.rule};}
+        @keyframes riseIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+        @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+        @keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+        @keyframes tick{0%{width:0;}100%{width:100%;}}
+        .nb{background:transparent;border:none;padding:6px 14px;font-family:'IBM Plex Mono',monospace;
+          font-size:10px;font-weight:600;color:${C.hint};cursor:pointer;transition:all 0.12s;
+          letter-spacing:0.12em;border-bottom:2px solid transparent;}
+        .nb:hover{color:${C.ink};}
+        .nb.on{color:${C.ink};border-bottom:2px solid ${C.ink};}
+        .yb{background:transparent;border:1px solid ${C.rule};padding:8px 14px;
+          cursor:pointer;transition:all 0.12s;font-family:'IBM Plex Mono',monospace;
+          text-align:left;border-radius:0;}
+        .yb:hover{border-color:${C.ink};background:${C.faint};}
+        .yb.on{background:${C.ink};border-color:${C.ink};color:${C.bg};}
+        .cr{background:${C.paper};border:1px solid ${C.rule};border-left:3px solid ${C.rule};
+          padding:14px 18px;cursor:pointer;transition:all 0.15s;margin-bottom:6px;
+          display:flex;align-items:center;justify-content:space-between;}
+        .cr:hover{border-left-color:${C.ink};transform:translateX(2px);}
+        .ghost{padding:6px 12px;border:1px solid ${C.rule};background:transparent;
+          color:${C.sub};font-size:9px;cursor:pointer;font-family:'IBM Plex Mono',monospace;
+          transition:all 0.12s;letter-spacing:0.1em;border-radius:0;}
+        .ghost:hover{color:${C.ink};border-color:${C.ink};}
+        input{border-radius:0!important;}
       `}</style>
 
+      {/* Ticker bar at very top */}
+      <div style={{background:C.ink,padding:"4px 36px",display:"flex",gap:32,
+        alignItems:"center",overflowX:"auto"}}>
+        {["CREDIT RISK INTELLIGENCE PLATFORM","POWERED BY CREDITLENS","MULTI-YEAR TREND ANALYSIS",
+          "5 DOCUMENT TYPES SUPPORTED","SUPABASE SECURE STORAGE"].map((t,i)=>(
+          <span key={i} style={{fontSize:9,color:C.hint,letterSpacing:"0.12em",whiteSpace:"nowrap",
+            fontFamily:"'Lora',serif"}}>— {t}</span>
+        ))}
+      </div>
+
       {/* Nav */}
-      <nav style={{borderBottom:`1px solid ${T.border}`,padding:"0 32px",
-        display:"flex",alignItems:"center",justifyContent:"space-between",
-        height:60,position:"sticky",top:0,zIndex:100,
-        background:`${T.bg}cc`,backdropFilter:"blur(12px)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:32,height:32,borderRadius:9,background:T.accent,
-            display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>◈</div>
-          <span style={{fontSize:17,fontWeight:700,letterSpacing:"-0.02em",
-            fontFamily:"'Space Grotesk',sans-serif",color:T.text}}>CreditLens</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          {[["upload","Analyze"],["companies","Companies"]].map(([v,l])=>(
-            <button key={v} className={`nav-item${view===v?" active":""}`}
-              onClick={()=>setView(v)}>{l}</button>
-          ))}
-          <div style={{width:1,height:20,background:T.border,margin:"0 8px"}}/>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginRight:8}}>
-            <div style={{width:28,height:28,borderRadius:"50%",background:T.muted,
-              display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,
-              color:T.sub,fontWeight:700}}>
-              {session.user.email[0].toUpperCase()}
-            </div>
-            <span style={{fontSize:13,color:T.sub,maxWidth:160,overflow:"hidden",
-              textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.user.email}</span>
+      <nav style={{background:C.bg,borderBottom:`2px solid ${C.ink}`,padding:"0 36px",
+        display:"flex",alignItems:"center",justifyContent:"space-between",height:52,
+        position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <span style={{fontSize:22,fontWeight:700,color:C.ink,fontFamily:"'Bebas Neue',sans-serif",
+            letterSpacing:"0.08em"}}>CREDITLENS</span>
+          <div style={{width:1,height:20,background:C.rule}}/>
+          <div style={{display:"flex",gap:0}}>
+            {[["upload","ANALYZE"],["companies","COMPANIES"]].map(([v,l])=>(
+              <button key={v} className={`nb${view===v?" on":""}`} onClick={()=>setView(v)}>{l}</button>
+            ))}
           </div>
-          <button className="btn-ghost" onClick={logout}
-            style={{fontSize:12,padding:"6px 12px"}}>Sign out</button>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:10,color:C.hint,letterSpacing:"0.08em"}}>
+            {session.user.email}
+          </span>
+          <button className="ghost" onClick={logout}>SIGN OUT</button>
         </div>
       </nav>
 
-      <div style={{maxWidth:1040,margin:"0 auto",padding:"40px 24px"}}>
+      <div style={{maxWidth:1060,margin:"0 auto",padding:"40px 24px"}}>
 
         {/* Upload */}
-        {view==="upload" && !result && !loading && (
-          <div style={{maxWidth:560,margin:"0 auto",animation:"fadeUp 0.5s ease both"}}>
-            <div style={{textAlign:"center",marginBottom:36}}>
-              <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",
-                borderRadius:99,background:T.accentBg,border:`1px solid ${T.accent}33`,marginBottom:16}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:T.accent,animation:"pulse 2s infinite"}}/>
-                <span style={{fontSize:12,color:T.accent,fontWeight:600,letterSpacing:"0.06em"}}>
-                  AI-POWERED ANALYSIS
-                </span>
+        {view==="upload"&&!result&&!loading&&(
+          <div style={{animation:"riseIn 0.5s ease both"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0,
+              marginBottom:40,borderBottom:`2px solid ${C.ink}`,paddingBottom:32}}>
+              <div>
+                <p style={{fontSize:10,color:C.hint,letterSpacing:"0.16em",marginBottom:12}}>
+                  RISK ANALYSIS ENGINE v2.0
+                </p>
+                <h1 style={{fontSize:56,fontWeight:700,lineHeight:0.95,marginBottom:16,
+                  fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.04em",color:C.ink}}>
+                  READ<br/>THE<br/>NUMBERS.
+                </h1>
+                <p style={{fontSize:11,color:C.sub,lineHeight:1.8,maxWidth:320,
+                  letterSpacing:"0.03em"}}>
+                  Upload any financial PDF. Fiscal years are detected automatically.
+                  Each section scored independently. Trends tracked over time.
+                </p>
               </div>
-              <h1 style={{fontSize:36,fontWeight:700,lineHeight:1.15,marginBottom:12,
-                fontFamily:"'Space Grotesk',sans-serif",letterSpacing:"-0.03em"}}>
-                Financial Risk<br/><span style={{color:T.accent}}>Intelligence</span>
-              </h1>
-              <p style={{color:T.sub,fontSize:15,lineHeight:1.6}}>
-                Upload any financial document. Fiscal years detected automatically.
-              </p>
+              <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end",
+                paddingLeft:32,borderLeft:`1px solid ${C.rule}`}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+                  {[["5","DOCUMENT TYPES"],["AUTO","YEAR DETECTION"],["JWT","SECURE AUTH"],["SQL","TREND HISTORY"]].map(([n,l])=>(
+                    <div key={l} style={{borderTop:`2px solid ${C.rule}`,paddingTop:10}}>
+                      <p style={{fontSize:24,fontWeight:700,color:C.ink,marginBottom:3,
+                        fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.04em"}}>{n}</p>
+                      <p style={{fontSize:9,color:C.hint,letterSpacing:"0.1em"}}>{l}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:20,padding:28}}>
-              <DropZone file={file} setFile={setFile}/>
-              <button className="btn-primary" onClick={upload} disabled={!file}>
-                Analyze Document →
+
+            <div style={{maxWidth:560}}>
+              <Drop file={file} setFile={setFile}/>
+              <button onClick={upload} disabled={!file} style={{
+                width:"100%",padding:"14px",border:"none",
+                background:file?C.ink:C.rule,
+                color:file?C.bg:C.hint,fontSize:11,fontWeight:700,
+                cursor:file?"pointer":"not-allowed",
+                fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.14em",
+                transition:"all 0.15s",borderRadius:0}}>
+                {file?"RUN ANALYSIS →":"SELECT A DOCUMENT FIRST"}
               </button>
-              {error&&<p style={{marginTop:12,color:T.high,fontSize:13,textAlign:"center"}}>{error}</p>}
+              {error&&<p style={{marginTop:10,color:C.red,fontSize:10,
+                letterSpacing:"0.06em"}}>{error}</p>}
             </div>
           </div>
         )}
 
         {/* Loading */}
-        {loading && (
-          <div style={{textAlign:"center",padding:"100px 0"}}>
-            <div style={{width:48,height:48,borderRadius:"50%",
-              border:`3px solid ${T.border}`,borderTopColor:T.accent,
-              animation:"spin 0.7s linear infinite",margin:"0 auto 20px"}}/>
-            <p style={{color:T.sub,fontSize:15}}>Scanning document and detecting fiscal years...</p>
+        {loading&&(
+          <div style={{padding:"100px 0",animation:"fadeIn 0.3s ease both"}}>
+            <p style={{fontSize:11,color:C.hint,letterSpacing:"0.14em",marginBottom:20,
+              fontFamily:"'IBM Plex Mono',monospace"}}>ANALYZING DOCUMENT</p>
+            <div style={{height:2,background:C.faint,width:"100%",maxWidth:400,overflow:"hidden"}}>
+              <div style={{height:"100%",background:C.ink,
+                animation:"tick 2s ease-in-out infinite alternate"}}/>
+            </div>
           </div>
         )}
 
         {/* Results */}
-        {result && !loading && (
+        {result&&!loading&&(
           <div>
-            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",
-              marginBottom:32,flexWrap:"wrap",gap:16,animation:"fadeUp 0.4s ease both"}}>
+            {/* Header strip */}
+            <div style={{borderBottom:`2px solid ${C.ink}`,paddingBottom:20,marginBottom:28,
+              display:"flex",alignItems:"flex-end",justifyContent:"space-between",
+              flexWrap:"wrap",gap:16,animation:"riseIn 0.5s ease both"}}>
               <div>
-                <p style={{fontSize:11,color:T.sub,letterSpacing:"0.1em",marginBottom:6,
-                  fontFamily:"'Space Grotesk',monospace"}}>ANALYSIS COMPLETE</p>
-                <h2 style={{fontSize:28,fontWeight:700,letterSpacing:"-0.02em",
-                  fontFamily:"'Space Grotesk',sans-serif",marginBottom:10}}>{result.business_name}</h2>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                <p style={{fontSize:9,color:C.hint,letterSpacing:"0.16em",marginBottom:8}}>
+                  ANALYSIS COMPLETE  ·  {new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}).toUpperCase()}
+                </p>
+                <h2 style={{fontSize:40,fontWeight:700,letterSpacing:"0.02em",
+                  fontFamily:"'Bebas Neue',sans-serif",color:C.ink,lineHeight:1,marginBottom:8}}>
+                  {result.business_name.toUpperCase()}
+                </h2>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  <span style={{fontSize:9,color:C.hint,letterSpacing:"0.1em"}}>FISCAL YEARS ·</span>
                   {result.years_detected?.map(y=>(
-                    <span key={y} style={{padding:"3px 10px",borderRadius:6,
-                      background:T.surface,color:T.sub,fontSize:12,
-                      fontFamily:"'Space Grotesk',monospace",border:`1px solid ${T.border}`}}>{y}</span>
+                    <span key={y} style={{padding:"1px 7px",background:C.faint,
+                      color:C.sub,fontSize:10,border:`1px solid ${C.rule}`,
+                      fontFamily:"'IBM Plex Mono',monospace",letterSpacing:"0.06em"}}>{y}</span>
                   ))}
                 </div>
               </div>
-              <button className="btn-ghost" onClick={()=>{setResult(null);setFile(null);}}>
-                ← New analysis
+              <button className="ghost" onClick={()=>{setResult(null);setFile(null);setHist([]);}}>
+                ← NEW ANALYSIS
               </button>
             </div>
 
             {/* Year tabs */}
-            <div style={{display:"flex",gap:8,marginBottom:28,flexWrap:"wrap"}}>
-              {yearResults.map(r=>(
-                <button key={r.year} onClick={()=>setActiveYear(r.year)} style={{
-                  background:activeYear===r.year?T.card:"transparent",
-                  border:`1px solid ${activeYear===r.year?T.border:"transparent"}`,
-                  borderRadius:12,padding:"10px 20px",cursor:"pointer",
-                  transition:"all 0.2s",textAlign:"left",minWidth:90}}>
-                  <p style={{fontSize:11,color:T.sub,marginBottom:4,
-                    fontFamily:"'Space Grotesk',monospace",letterSpacing:"0.06em"}}>FY {r.year}</p>
-                  <p style={{fontSize:20,fontWeight:700,color:riskColor(r.overall_tier),margin:0,
-                    fontFamily:"'Space Grotesk',monospace"}}>{r.overall_score}</p>
+            <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap"}}>
+              {yrs.map(r=>(
+                <button key={r.year} className={`yb${yr===r.year?" on":""}`}
+                  onClick={()=>setYr(r.year)}>
+                  <span style={{fontSize:8,display:"block",letterSpacing:"0.14em",
+                    opacity:0.5,marginBottom:2}}>FY</span>
+                  <span style={{fontSize:20,fontWeight:700,display:"block",
+                    fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.04em",
+                    color:yr===r.year?C.bg:rc(r.overall_tier),lineHeight:1}}>
+                    {r.year}
+                  </span>
+                  <span style={{fontSize:8,display:"block",opacity:0.5,marginTop:2,
+                    letterSpacing:"0.08em"}}>{r.overall_score}/100</span>
                 </button>
               ))}
             </div>
 
-            {currentYear && (
+            {cur&&(
               <>
-                <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:20,
-                  marginBottom:20,animation:"fadeUp 0.4s ease 0.1s both"}}>
-                  <div style={{background:T.card,border:`1px solid ${T.border}`,
-                    borderRadius:20,padding:28,display:"flex",flexDirection:"column",
-                    alignItems:"center",justifyContent:"center",minWidth:200}}>
-                    <ScoreArc score={currentYear.overall_score} size={140}/>
-                    <div style={{marginTop:16,textAlign:"center"}}>
-                      <span style={{padding:"5px 14px",borderRadius:99,fontSize:12,fontWeight:700,
-                        background:riskBg(currentYear.overall_tier),
-                        color:riskColor(currentYear.overall_tier),
-                        border:`1px solid ${riskColor(currentYear.overall_tier)}33`,
-                        letterSpacing:"0.08em",textTransform:"uppercase"}}>
-                        {currentYear.overall_tier} risk
-                      </span>
-                      <p style={{marginTop:10,fontSize:13,color:T.sub}}>
-                        Recommendation:{" "}
-                        <span style={{color:riskColor(currentYear.overall_tier),fontWeight:600,textTransform:"capitalize"}}>
-                          {currentYear.overall_recommendation}
+                {/* Hero — score + mini cards */}
+                <div style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:12,
+                  marginBottom:12,animation:"riseIn 0.5s ease 0.1s both"}}>
+
+                  <div style={{background:C.paper,border:`1px solid ${C.rule}`,
+                    borderTop:`3px solid ${rc(cur.overall_tier)}`,
+                    padding:"24px 20px",display:"flex",flexDirection:"column",
+                    alignItems:"center",justifyContent:"center"}}>
+                    <Ring score={cur.overall_score} size={120}/>
+                    <div style={{marginTop:14,textAlign:"center"}}>
+                      <Tag tier={cur.overall_tier}/>
+                      <p style={{marginTop:10,fontSize:9,color:C.hint,letterSpacing:"0.1em"}}>
+                        RECOMMEND: <span style={{color:rc(cur.overall_tier),fontWeight:600}}>
+                          {cur.overall_recommendation.toUpperCase()}
                         </span>
                       </p>
                     </div>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
-                    {Object.entries(currentYear.sections||{}).map(([k,s],i)=>{
-                      const meta=SECTION_META[k]||{label:k,icon:"📊"};
-                      const color=riskColor(s.tier);
-                      return (
-                        <div key={k} style={{background:T.card,border:`1px solid ${T.border}`,
-                          borderRadius:14,padding:16,position:"relative",overflow:"hidden",
-                          animation:`fadeUp 0.4s ease ${i*60+200}ms both`}}>
-                          <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,
-                            background:color,opacity:0.6}}/>
-                          <p style={{fontSize:11,color:T.sub,marginBottom:8,
-                            letterSpacing:"0.07em",fontFamily:"'Space Grotesk',monospace"}}>
-                            {meta.icon} {meta.label.toUpperCase()}
-                          </p>
-                          <p style={{fontSize:26,fontWeight:700,color,marginBottom:4,
-                            fontFamily:"'Space Grotesk',monospace"}}>{s.score}</p>
-                          <div style={{height:3,background:T.border,borderRadius:99,marginBottom:10}}>
-                            <div style={{height:"100%",background:color,borderRadius:99,
-                              width:`${s.score}%`,transition:"width 0.8s ease"}}/>
+
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
+                    {Object.entries(cur.sections||{}).map(([k,s],i)=>{
+                      const meta=SM[k]||{short:"?",label:k};
+                      const color=rc(s.tier);
+                      return(
+                        <div key={k} style={{background:C.paper,border:`1px solid ${C.rule}`,
+                          borderTop:`3px solid ${color}`,padding:14,
+                          animation:`riseIn 0.5s ease ${i*60+150}ms both`}}>
+                          <p style={{fontSize:8,color:C.hint,marginBottom:6,
+                            letterSpacing:"0.14em"}}>{meta.short}</p>
+                          <p style={{fontSize:30,fontWeight:700,color,lineHeight:1,marginBottom:6,
+                            fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.02em"}}>{s.score}</p>
+                          <div style={{height:2,background:C.faint,marginBottom:8}}>
+                            <div style={{height:"100%",background:color,
+                              width:`${s.score}%`,transition:"width 1s ease"}}/>
                           </div>
-                          <p style={{fontSize:11,color:T.sub,lineHeight:1.5}}>
-                            {s.findings[0]||"No data"}
+                          <p style={{fontSize:9,color:C.sub,lineHeight:1.5,letterSpacing:"0.02em"}}>
+                            {s.findings[0]||"—"}
                           </p>
                         </div>
                       );
@@ -527,42 +542,52 @@ export default function App() {
                   </div>
                 </div>
 
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",
-                  gap:14,marginBottom:24}}>
-                  {Object.entries(currentYear.sections||{}).map(([k,s],i)=>(
-                    <SectionCard key={k} skey={k} section={s} delay={i*80}/>
+                {/* Detail cards */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",
+                  gap:8,marginBottom:16}}>
+                  {Object.entries(cur.sections||{}).map(([k,s],i)=>(
+                    <SCard key={k} skey={k} s={s} delay={i*80}/>
                   ))}
                 </div>
               </>
             )}
 
-            {trendData.length > 1 && (
-              <div style={{background:T.card,border:`1px solid ${T.border}`,
-                borderRadius:20,padding:28,marginBottom:20,animation:"fadeUp 0.4s ease 0.3s both"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+            {/* Trend chart */}
+            {trend.length>1&&(
+              <div style={{background:C.paper,border:`1px solid ${C.rule}`,
+                borderTop:`2px solid ${C.ink}`,padding:28,marginBottom:12,
+                animation:"riseIn 0.5s ease 0.3s both"}}>
+                <div style={{display:"flex",justifyContent:"space-between",
+                  alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}}>
                   <div>
-                    <p style={{fontSize:11,color:T.sub,letterSpacing:"0.08em",marginBottom:4,
-                      fontFamily:"'Space Grotesk',monospace"}}>RISK TRAJECTORY</p>
-                    <h3 style={{fontSize:17,fontWeight:600,fontFamily:"'Space Grotesk',sans-serif"}}>
-                      Year-over-Year Trend
-                    </h3>
+                    <p style={{fontSize:9,color:C.hint,letterSpacing:"0.14em",marginBottom:4}}>
+                      RISK TRAJECTORY</p>
+                    <h3 style={{fontSize:24,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
+                      letterSpacing:"0.04em",color:C.ink}}>YEAR-OVER-YEAR TREND</h3>
+                  </div>
+                  <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                    {[["OVERALL",C.blue],...Object.keys(cur?.sections||{}).map((k,i)=>[SM[k]?.short||k,LCOLORS[i+1]])].map(([l,c])=>(
+                      <div key={l} style={{display:"flex",alignItems:"center",gap:5}}>
+                        <div style={{width:14,height:2,background:c}}/>
+                        <span style={{fontSize:9,color:C.hint,letterSpacing:"0.1em"}}>{l}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={trendData} margin={{top:4,right:4,left:-20,bottom:0}}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                    <XAxis dataKey="year" stroke={T.sub} tick={{fill:T.sub,fontSize:12}}/>
-                    <YAxis domain={[0,100]} stroke={T.sub} tick={{fill:T.sub,fontSize:12}}/>
-                    <Tooltip content={<ChartTooltip/>}/>
-                    <ReferenceLine y={70} stroke={T.high} strokeDasharray="4 4" strokeOpacity={0.4}/>
-                    <ReferenceLine y={40} stroke={T.low} strokeDasharray="4 4" strokeOpacity={0.4}/>
-                    <Line type="monotone" dataKey="score" name="Overall" stroke={T.accent}
-                      strokeWidth={2.5} dot={{r:5,fill:T.accent,strokeWidth:0}}/>
-                    {Object.keys(currentYear?.sections||{}).map((k,i)=>(
-                      <Line key={k} type="monotone" dataKey={SECTION_META[k]?.label||k}
-                        name={SECTION_META[k]?.label||k}
-                        stroke={[T.low,T.medium,T.purple,T.high,T.text][i]}
-                        strokeWidth={1.5} strokeDasharray="4 4" dot={{r:3,strokeWidth:0}}/>
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={trend} margin={{top:4,right:4,left:-20,bottom:0}}>
+                    <CartesianGrid strokeDasharray="1 4" stroke={C.faint} vertical={false}/>
+                    <XAxis dataKey="year" stroke={C.rule} tick={{fill:C.hint,fontSize:9,fontFamily:"'IBM Plex Mono',monospace",letterSpacing:"0.08em"}}/>
+                    <YAxis domain={[0,100]} stroke={C.rule} tick={{fill:C.hint,fontSize:9,fontFamily:"'IBM Plex Mono',monospace"}}/>
+                    <Tooltip content={<ChartTip/>}/>
+                    <ReferenceLine y={70} stroke={C.red} strokeDasharray="3 4" strokeOpacity={0.3}/>
+                    <ReferenceLine y={40} stroke={C.green} strokeDasharray="3 4" strokeOpacity={0.3}/>
+                    <Line type="monotone" dataKey="score" name="OVERALL" stroke={C.blue}
+                      strokeWidth={2} dot={{r:4,fill:C.blue,strokeWidth:0}}/>
+                    {Object.keys(cur?.sections||{}).map((k,i)=>(
+                      <Line key={k} type="monotone" dataKey={SM[k]?.short||k}
+                        name={SM[k]?.short||k} stroke={LCOLORS[i+1]}
+                        strokeWidth={1.5} strokeDasharray="5 3" dot={{r:3,strokeWidth:0}}/>
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
@@ -572,131 +597,132 @@ export default function App() {
         )}
 
         {/* Companies */}
-        {view==="companies" && !historyCompany && (
-          <div style={{animation:"fadeUp 0.4s ease both"}}>
-            <div style={{marginBottom:28}}>
-              <p style={{fontSize:11,color:T.sub,letterSpacing:"0.1em",marginBottom:6,
-                fontFamily:"'Space Grotesk',monospace"}}>DATABASE</p>
-              <h2 style={{fontSize:26,fontWeight:700,fontFamily:"'Space Grotesk',sans-serif",
-                letterSpacing:"-0.02em"}}>Companies</h2>
+        {view==="companies"&&!hco&&(
+          <div style={{animation:"riseIn 0.5s ease both"}}>
+            <div style={{borderBottom:`2px solid ${C.ink}`,paddingBottom:16,marginBottom:28}}>
+              <p style={{fontSize:9,color:C.hint,letterSpacing:"0.16em",marginBottom:6}}>DATABASE</p>
+              <h2 style={{fontSize:36,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
+                letterSpacing:"0.04em",color:C.ink}}>COMPANIES</h2>
             </div>
-            {companies.length===0 ? (
-              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:20,
-                padding:"60px 40px",textAlign:"center"}}>
-                <p style={{fontSize:32,marginBottom:12}}>🏢</p>
-                <p style={{color:T.sub,fontSize:15}}>No companies yet — upload a financial document to get started</p>
+            {cos.length===0?(
+              <div style={{border:`1px dashed ${C.rule}`,padding:"60px 32px",textAlign:"center"}}>
+                <p style={{fontSize:11,color:C.hint,letterSpacing:"0.08em",lineHeight:1.8}}>
+                  NO COMPANIES ON RECORD<br/>
+                  <span style={{fontSize:9}}>UPLOAD A FINANCIAL DOCUMENT TO BEGIN</span>
+                </p>
               </div>
-            ) : companies.map((c,i)=>(
-              <div key={c.id} className="company-row"
-                style={{animation:`fadeUp 0.4s ease ${i*60}ms both`}}
-                onClick={()=>{loadHistory(c.id);setHistoryCompany(c);}}>
+            ):cos.map((c,i)=>(
+              <div key={c.id} className="cr"
+                style={{animation:`riseIn 0.5s ease ${i*60}ms both`}}
+                onClick={()=>{loadH(c.id);setHco(c);}}>
                 <div>
-                  <p style={{fontWeight:600,fontSize:15,marginBottom:3,
-                    fontFamily:"'Space Grotesk',sans-serif"}}>{c.name}</p>
-                  <p style={{fontSize:12,color:T.sub}}>
-                    Added {new Date(c.created_at).toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"})}
+                  <p style={{fontWeight:600,fontSize:13,marginBottom:3,color:C.ink,
+                    fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.06em"}}>
+                    {c.name.toUpperCase()}
+                  </p>
+                  <p style={{fontSize:9,color:C.hint,letterSpacing:"0.08em"}}>
+                    ADDED {new Date(c.created_at).toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"}).toUpperCase()}
                   </p>
                 </div>
-                <span style={{color:T.sub,fontSize:18}}>→</span>
+                <span style={{color:C.hint,fontSize:12,letterSpacing:"0.06em"}}>VIEW →</span>
               </div>
             ))}
           </div>
         )}
 
         {/* History */}
-        {view==="companies" && historyCompany && history.length>0 && (
-          <div style={{animation:"fadeUp 0.4s ease both"}}>
-            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:32}}>
-              <button className="btn-ghost" onClick={()=>setHistoryCompany(null)}>← Back</button>
+        {view==="companies"&&hco&&history.length>0&&(
+          <div style={{animation:"riseIn 0.5s ease both"}}>
+            <div style={{borderBottom:`2px solid ${C.ink}`,paddingBottom:16,marginBottom:28,
+              display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
               <div>
-                <p style={{fontSize:11,color:T.sub,letterSpacing:"0.1em",marginBottom:3,
-                  fontFamily:"'Space Grotesk',monospace"}}>HISTORY</p>
-                <h2 style={{fontSize:24,fontWeight:700,fontFamily:"'Space Grotesk',sans-serif",
-                  letterSpacing:"-0.02em"}}>{historyCompany.name}</h2>
+                <p style={{fontSize:9,color:C.hint,letterSpacing:"0.16em",marginBottom:6}}>HISTORY</p>
+                <h2 style={{fontSize:36,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
+                  letterSpacing:"0.04em",color:C.ink}}>{hco.name.toUpperCase()}</h2>
               </div>
+              <button className="ghost" onClick={()=>setHco(null)}>← BACK</button>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",
-              gap:12,marginBottom:24}}>
-              {history.map((h,i)=>{
-                const color=riskColor(h.overall_tier);
-                return (
-                  <div key={h.id} style={{background:T.card,border:`1px solid ${T.border}`,
-                    borderRadius:16,padding:20,textAlign:"center",
-                    animation:`fadeUp 0.4s ease ${i*80}ms both`}}>
-                    <p style={{fontSize:11,color:T.sub,letterSpacing:"0.08em",marginBottom:12,
-                      fontFamily:"'Space Grotesk',monospace"}}>FY {h.fiscal_year}</p>
-                    <ScoreArc score={h.overall_score} size={80} animate={false}/>
-                    <span style={{display:"inline-block",marginTop:10,padding:"3px 10px",
-                      borderRadius:99,fontSize:11,fontWeight:700,background:riskBg(h.overall_tier),
-                      color,border:`1px solid ${color}33`,letterSpacing:"0.06em",
-                      textTransform:"uppercase"}}>{h.overall_tier}</span>
-                  </div>
-                );
-              })}
+
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",
+              gap:8,marginBottom:16}}>
+              {history.map((h,i)=>(
+                <div key={h.id} style={{background:C.paper,
+                  border:`1px solid ${C.rule}`,borderTop:`3px solid ${rc(h.overall_tier)}`,
+                  padding:"16px 14px",textAlign:"center",
+                  animation:`riseIn 0.5s ease ${i*80}ms both`}}>
+                  <p style={{fontSize:8,color:C.hint,letterSpacing:"0.14em",marginBottom:10}}>
+                    FY {h.fiscal_year}
+                  </p>
+                  <Ring score={h.overall_score} size={72} animate={false}/>
+                  <div style={{marginTop:10}}><Tag tier={h.overall_tier} sm/></div>
+                </div>
+              ))}
             </div>
-            {historyTrend.length>1 && (
-              <div style={{background:T.card,border:`1px solid ${T.border}`,
-                borderRadius:20,padding:28,marginBottom:24}}>
-                <p style={{fontSize:11,color:T.sub,letterSpacing:"0.08em",marginBottom:4,
-                  fontFamily:"'Space Grotesk',monospace"}}>RISK TREND</p>
-                <h3 style={{fontSize:17,fontWeight:600,marginBottom:24,
-                  fontFamily:"'Space Grotesk',sans-serif"}}>Score Over Time</h3>
-                <ResponsiveContainer width="100%" height={240}>
-                  <AreaChart data={historyTrend} margin={{top:4,right:4,left:-20,bottom:0}}>
+
+            {htd.length>1&&(
+              <div style={{background:C.paper,border:`1px solid ${C.rule}`,
+                borderTop:`2px solid ${C.ink}`,padding:28,marginBottom:12}}>
+                <p style={{fontSize:9,color:C.hint,letterSpacing:"0.14em",marginBottom:4}}>RISK TREND</p>
+                <h3 style={{fontSize:22,fontWeight:700,marginBottom:24,
+                  fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.04em",
+                  color:C.ink}}>SCORE OVER TIME</h3>
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={htd} margin={{top:4,right:4,left:-20,bottom:0}}>
                     <defs>
-                      <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={T.accent} stopOpacity={0.3}/>
-                        <stop offset="100%" stopColor={T.accent} stopOpacity={0}/>
+                      <linearGradient id="ag2" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={C.blue} stopOpacity={0.1}/>
+                        <stop offset="100%" stopColor={C.blue} stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                    <XAxis dataKey="year" stroke={T.sub} tick={{fill:T.sub,fontSize:12}}/>
-                    <YAxis domain={[0,100]} stroke={T.sub} tick={{fill:T.sub,fontSize:12}}/>
-                    <Tooltip content={<ChartTooltip/>}/>
-                    <ReferenceLine y={70} stroke={T.high} strokeDasharray="4 4" strokeOpacity={0.4}/>
-                    <ReferenceLine y={40} stroke={T.low} strokeDasharray="4 4" strokeOpacity={0.4}/>
-                    <Area type="monotone" dataKey="score" name="Overall" stroke={T.accent}
-                      strokeWidth={2.5} fill="url(#areaGrad)" dot={{r:5,fill:T.accent,strokeWidth:0}}/>
-                    <Line type="monotone" dataKey="income" name="Income" stroke={T.low}
-                      strokeWidth={1.5} strokeDasharray="4 4" dot={false}/>
-                    <Line type="monotone" dataKey="balance" name="Balance" stroke={T.medium}
-                      strokeWidth={1.5} strokeDasharray="4 4" dot={false}/>
-                    <Line type="monotone" dataKey="cashflow" name="Cash Flow" stroke={T.purple}
-                      strokeWidth={1.5} strokeDasharray="4 4" dot={false}/>
+                    <CartesianGrid strokeDasharray="1 4" stroke={C.faint} vertical={false}/>
+                    <XAxis dataKey="year" stroke={C.rule} tick={{fill:C.hint,fontSize:9,fontFamily:"'IBM Plex Mono',monospace"}}/>
+                    <YAxis domain={[0,100]} stroke={C.rule} tick={{fill:C.hint,fontSize:9,fontFamily:"'IBM Plex Mono',monospace"}}/>
+                    <Tooltip content={<ChartTip/>}/>
+                    <ReferenceLine y={70} stroke={C.red} strokeDasharray="3 4" strokeOpacity={0.3}/>
+                    <ReferenceLine y={40} stroke={C.green} strokeDasharray="3 4" strokeOpacity={0.3}/>
+                    <Area type="monotone" dataKey="score" name="OVERALL" stroke={C.blue}
+                      strokeWidth={2} fill="url(#ag2)" dot={{r:4,fill:C.blue,strokeWidth:0}}/>
+                    <Line type="monotone" dataKey="INC" name="INCOME" stroke={C.green}
+                      strokeWidth={1.5} strokeDasharray="5 3" dot={false}/>
+                    <Line type="monotone" dataKey="BAL" name="BALANCE" stroke={C.amber}
+                      strokeWidth={1.5} strokeDasharray="5 3" dot={false}/>
+                    <Line type="monotone" dataKey="CF" name="CASH FLOW" stroke={C.red}
+                      strokeWidth={1.5} strokeDasharray="5 3" dot={false}/>
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             )}
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:20,padding:28}}>
-              <p style={{fontSize:11,color:T.sub,letterSpacing:"0.08em",marginBottom:4,
-                fontFamily:"'Space Grotesk',monospace"}}>FINANCIALS</p>
-              <h3 style={{fontSize:17,fontWeight:600,marginBottom:20,
-                fontFamily:"'Space Grotesk',sans-serif"}}>Metrics by Year</h3>
+
+            <div style={{background:C.paper,border:`1px solid ${C.rule}`,
+              borderTop:`2px solid ${C.ink}`,padding:28}}>
+              <p style={{fontSize:9,color:C.hint,letterSpacing:"0.14em",marginBottom:4}}>FINANCIALS</p>
+              <h3 style={{fontSize:22,fontWeight:700,marginBottom:20,
+                fontFamily:"'Bebas Neue',sans-serif",letterSpacing:"0.04em",
+                color:C.ink}}>METRICS BY YEAR</h3>
               <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
                   <thead>
-                    <tr>{["Year","Revenue","Net Income","Total Assets","Liabilities","Op. Cash"].map(h=>(
-                      <th key={h} style={{padding:"10px 14px",textAlign:"left",
-                        color:T.sub,fontWeight:500,fontSize:11,letterSpacing:"0.06em",
-                        borderBottom:`1px solid ${T.border}`,
-                        fontFamily:"'Space Grotesk',monospace"}}>{h.toUpperCase()}</th>
-                    ))}</tr>
+                    <tr style={{borderBottom:`2px solid ${C.ink}`}}>
+                      {["YEAR","REVENUE","NET INCOME","TOTAL ASSETS","LIABILITIES","OP. CASH"].map(h=>(
+                        <th key={h} style={{padding:"8px 12px",textAlign:"left",color:C.hint,
+                          fontWeight:500,fontSize:8,letterSpacing:"0.14em",
+                          fontFamily:"'IBM Plex Mono',monospace"}}>{h}</th>
+                      ))}
+                    </tr>
                   </thead>
                   <tbody>
                     {history.map(h=>(
-                      <tr key={h.id} style={{borderBottom:`1px solid ${T.border}`}}>
-                        <td style={{padding:"12px 14px",fontWeight:700,
-                          fontFamily:"'Space Grotesk',monospace",color:T.accent}}>{h.fiscal_year}</td>
-                        {[h.revenue,null,h.total_assets,h.total_liabilities,h.operating_cash].map((v,i)=>{
-                          const isIncome=i===1;
-                          const val=isIncome?h.net_income:v;
-                          return (
-                            <td key={i} style={{padding:"12px 14px",
-                              color:isIncome?(val>0?T.low:T.high):T.text}}>
-                              {val!=null?`$${Number(val).toLocaleString()}`:"—"}
-                            </td>
-                          );
-                        })}
+                      <tr key={h.id} style={{borderBottom:`1px solid ${C.faint}`}}>
+                        <td style={{padding:"10px 12px",fontWeight:700,
+                          fontFamily:"'Bebas Neue',sans-serif",color:C.ink,
+                          fontSize:16,letterSpacing:"0.04em"}}>{h.fiscal_year}</td>
+                        {[h.revenue,h.net_income,h.total_assets,h.total_liabilities,h.operating_cash].map((v,i)=>(
+                          <td key={i} style={{padding:"10px 12px",
+                            fontFamily:"'IBM Plex Mono',monospace",fontSize:10,
+                            color:i===1?(v>0?C.green:C.red):C.sub}}>
+                            {v!=null?`$${Number(v).toLocaleString()}`:"—"}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
