@@ -358,26 +358,32 @@ async def analyze_pdf(file: UploadFile = File(...), user_id: str = Depends(get_u
             page_text = page.extract_text() or ""
             text += page_text
 
-        # Try to find company name from common SEC filing patterns
+        # Smart name extraction — look for known patterns first
         name_patterns = [
-            r"(?:registrant|company name|corporation|incorporated|inc\.)[:\s]+([A-Z][A-Za-z\s&,\.]+(?:Inc|Corp|LLC|Ltd|Co)?\.?)",
-            r"^([A-Z][A-Z\s&]+(?:INC|CORP|LLC|LTD|CO)\.?)",  # ALL CAPS company name
+            r'^([A-Z][A-Z\s&\',\.]+(?:INC\.?|CORP\.?|LLC\.?|LTD\.?|CO\.?|COMPANY|CORPORATION|INCORPORATED))',
+            r'([A-Z][A-Z\s&\',\.]{3,50}(?:INC\.?|CORP\.?|LLC\.?|LTD\.?|CO\.?|COMPANY|CORPORATION))',
         ]
-        
+
         for pattern in name_patterns:
-            match = re.search(pattern, text[:3000], re.MULTILINE | re.IGNORECASE)
+            match = re.search(pattern, text[:3000], re.MULTILINE)
             if match:
                 candidate = match.group(1).strip()
-                if 3 < len(candidate) < 80:
+                # Filter out garbage lines
+                if 3 < len(candidate) < 80 and "SUBSIDIARIES" not in candidate:
                     business_name = candidate
                     break
-    
-    # Fallback to first non-empty line
+
+    # Fallback — first short non-numeric line that isn't a header
     if business_name == "Unknown":
-        for line in text.split('\n')[:20]:
+        for line in text.split('\n')[:30]:
             line = line.strip()
-            if len(line) > 3 and not re.match(r'^[\d\s\-/]+$', line):
-                business_name = line[:80]
+            if (5 < len(line) < 60
+                and not re.match(r'^[\d\s\-/\.]+$', line)
+                and "subsidiaries" not in line.lower()
+                and "consolidated" not in line.lower()
+                and "table of contents" not in line.lower()
+                and "financial statements" not in line.lower()):
+                business_name = line
                 break
 
     if not text.strip():
