@@ -98,9 +98,9 @@ function AuthScreen(){
   };
   return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",
-      justifyContent:"center",fontFamily:"'Plus Jakarta Sans',sans-serif",
-      backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px)`}}>
-      <div style={{width:"100%",maxWidth:380,padding:"0 24px"}}>
+  justifyContent:"center",fontFamily:"'Plus Jakarta Sans',sans-serif",
+  backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px)`}}>
+  <div style={{width:"100%",maxWidth:380,padding:"0 24px",boxSizing:"border-box"}}>
         <div style={{marginBottom:36,textAlign:"center"}}>
           <div style={{display:"inline-block",borderBottom:`3px solid ${C.ink}`,paddingBottom:8,marginBottom:8}}>
             <span style={{fontSize:32,fontWeight:700,color:C.ink,fontFamily:"'Lora',serif",letterSpacing:"-0.01em"}}>CreditLens</span>
