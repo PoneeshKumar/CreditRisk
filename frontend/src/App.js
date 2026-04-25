@@ -230,9 +230,118 @@ function Landing({onSelect}){
   );
 }
 
+// ── Metric explainer data ────────────────────────────────────────────────────
+const METRIC_INFO={
+  gds:{
+    name:"GDS — Gross Debt Service",category:"Mortgage",
+    what:"GDS measures how much of your gross monthly income goes toward housing costs — specifically your mortgage payment, property taxes, and heating. It tells lenders whether you can afford the home itself, before accounting for any other debt.",
+    why:"Banks use GDS to ensure housing costs alone don't overwhelm your income. A high GDS means you'd be house-poor — technically making payments but with no room for anything else. It's the first filter in any mortgage application.",
+    formula:"GDS = Monthly mortgage payment ÷ Gross monthly income × 100",
+    thresholds:[{l:"Excellent",v:"< 28%",c:C.green},{l:"Good",v:"28–32%",c:C.amber},{l:"Borderline",v:"32–39%",c:"#E07000"},{l:"Over limit",v:"> 39%",c:C.red}],
+    benchmark:"All Big 5 banks cap GDS at 39%. BMO tightens this to 35% for higher-risk applicants. Stress test rate (5.25%) is used — not your actual rate.",
+  },
+  tds:{
+    name:"TDS — Total Debt Service",category:"Mortgage",
+    what:"TDS is the complete picture of your debt obligations. It adds your mortgage payment to all existing monthly debts — car loans, student loans, minimum credit card payments — and divides by gross income. It's the true measure of your total debt burden.",
+    why:"A borrower can pass GDS but fail TDS if they carry heavy other debts. TDS catches this. It's the number most lenders focus on because it reflects your real monthly cash flow obligations — not just housing.",
+    formula:"TDS = (Mortgage + all monthly debts) ÷ Gross monthly income × 100",
+    thresholds:[{l:"Excellent",v:"< 36%",c:C.green},{l:"Good",v:"36–40%",c:C.amber},{l:"Borderline",v:"40–44%",c:"#E07000"},{l:"Over limit",v:"> 44%",c:C.red}],
+    benchmark:"The hard ceiling across all Big 5 is 44%. BMO caps at 42%. Applicants near 44% often face higher rates, reduced loan amounts, or mandatory mortgage insurance.",
+  },
+  dti:{
+    name:"DTI — Debt-to-Income",category:"LOC & Personal Loans",
+    what:"DTI is used for non-mortgage credit products. It measures the share of your income already committed to debt repayments, excluding housing costs. For lines of credit and personal loans, this is the primary qualifying ratio.",
+    why:"For unsecured lending, banks need confidence you have enough free cash flow to service a new credit line without defaulting. A high DTI signals you're already stretched — adding more debt increases the bank's risk significantly.",
+    formula:"DTI = Total monthly debt payments ÷ Gross monthly income × 100",
+    thresholds:[{l:"Strong",v:"< 30%",c:C.green},{l:"Acceptable",v:"30–40%",c:C.amber},{l:"High risk",v:"40–44%",c:"#E07000"},{l:"Likely declined",v:"> 44%",c:C.red}],
+    benchmark:"TD and BMO cap DTI at 40%. RBC and CIBC at 42%. Scotiabank is most flexible at 44%. Self-employed applicants face stricter scrutiny at all banks.",
+  },
+  stress:{
+    name:"Stress Test Rate",category:"Mortgage — Regulatory",
+    what:"Canada's mortgage stress test requires you to qualify at a rate higher than your actual contract rate. Your GDS and TDS are calculated using the higher of: your contract rate + 2%, or the floor rate of 5.25%. This means you qualify for less than your actual rate might suggest.",
+    why:"Introduced after the 2008 financial crisis and tightened in 2021, the stress test ensures borrowers can still afford their mortgage if rates rise after signing. It's mandated by OSFI and applies to all federally regulated lenders — including all Big 5 banks.",
+    formula:"Qualifying rate = max(contract rate + 2%, 5.25%)",
+    thresholds:[{l:"Current floor",v:"5.25%",c:C.blue},{l:"If contract = 6%",v:"Qualify at 8%",c:C.amber}],
+    benchmark:"All Big 5 must apply this stress test by law. Credit unions and private lenders are exempt — they can qualify you at your actual rate. This is why some borrowers go to B-lenders after failing Big 5 qualification.",
+  },
+  score:{
+    name:"Credit Score",category:"All Products",
+    what:"Canadian credit scores run from 300 to 900, calculated by Equifax and TransUnion. The score reflects: payment history (35%), credit utilization (30%), length of credit history (15%), credit mix (10%), and new inquiries (10%). A higher score means lower perceived default risk.",
+    why:"Your credit score is a lender's primary proxy for your repayment reliability. Even a 20-point difference can change your rate by 0.25–0.5%, or flip an application from approved to declined. It affects both your eligibility and the interest rate you're offered.",
+    formula:"Score = f(payment history 35%, utilization 30%, history length 15%, mix 10%, inquiries 10%)",
+    thresholds:[{l:"Exceptional",v:"800–900",c:C.green},{l:"Very good",v:"740–799",c:"#2A8A50"},{l:"Good",v:"670–739",c:C.amber},{l:"Fair",v:"580–669",c:"#E07000"},{l:"Poor",v:"300–579",c:C.red}],
+    benchmark:"TD and BMO require 700+ for mortgages. RBC, Scotiabank, and CIBC accept 680+. For LOC and personal loans, most Big 5 accept 650+. Below 600, you'll likely need a co-signer or private lender.",
+  },
+};
+
+function MetricModal({metric,onClose}){
+  if(!metric)return null;
+  const m=METRIC_INFO[metric];
+  if(!m)return null;
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(28,26,20,0.65)",zIndex:200,
+      display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
+      onClick={onClose}>
+      <div style={{background:C.paper,border:`1px solid ${C.rule}`,maxWidth:580,width:"100%",
+        maxHeight:"85vh",overflowY:"auto",boxShadow:`8px 8px 0 ${C.ink}`,position:"relative"}}
+        onClick={e=>e.stopPropagation()}>
+        <div style={{position:"sticky",top:0,background:C.paper,borderBottom:`1px solid ${C.rule}`,
+          padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            <p style={{fontSize:8,color:C.hint,letterSpacing:"0.14em",marginBottom:3,
+              fontFamily:"'JetBrains Mono',monospace"}}>{m.category}</p>
+            <h3 style={{fontSize:18,fontWeight:700,fontFamily:"'Lora',serif",
+              letterSpacing:"-0.01em",color:C.ink}}>{m.name}</h3>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:`1px solid ${C.rule}`,
+            cursor:"pointer",width:28,height:28,display:"flex",alignItems:"center",
+            justifyContent:"center",color:C.hint,fontSize:13,flexShrink:0}}>✕</button>
+        </div>
+        <div style={{padding:24}}>
+          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.12em",marginBottom:6,
+            fontFamily:"'JetBrains Mono',monospace"}}>WHAT IT IS</p>
+          <p style={{fontSize:13,color:C.sub,lineHeight:1.8,marginBottom:20,
+            fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{m.what}</p>
+          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.12em",marginBottom:6,
+            fontFamily:"'JetBrains Mono',monospace"}}>WHY LENDERS USE IT</p>
+          <p style={{fontSize:13,color:C.sub,lineHeight:1.8,marginBottom:20,
+            fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{m.why}</p>
+          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.12em",marginBottom:6,
+            fontFamily:"'JetBrains Mono',monospace"}}>FORMULA</p>
+          <div style={{background:C.faint,padding:"10px 14px",marginBottom:20,
+            fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:C.sub,
+            borderLeft:`3px solid ${C.blue}`,lineHeight:1.6}}>{m.formula}</div>
+          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.12em",marginBottom:10,
+            fontFamily:"'JetBrains Mono',monospace"}}>THRESHOLDS</p>
+          {m.thresholds.map(t=>(
+            <div key={t.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <span style={{fontSize:11,color:C.sub,minWidth:90,fontFamily:"'JetBrains Mono',monospace"}}>{t.l}</span>
+              <div style={{flex:1,height:3,background:C.faint,borderRadius:0}}>
+                <div style={{height:"100%",background:t.c,
+                  width:t.l==="Exceptional"||t.l==="Strong"||t.l==="Excellent"||t.l==="Current floor"?"100%":
+                        t.l==="Very good"?"80%":t.l==="Good"||t.l==="Acceptable"?"60%":
+                        t.l==="Fair"||t.l==="Borderline"||t.l==="High risk"?"40%":"25%"}}/>
+              </div>
+              <span style={{fontSize:11,fontWeight:600,color:t.c,minWidth:90,textAlign:"right",
+                fontFamily:"'JetBrains Mono',monospace"}}>{t.v}</span>
+            </div>
+          ))}
+          <div style={{marginTop:20,padding:"12px 14px",background:C.blueBg,
+            borderLeft:`3px solid ${C.blue}`}}>
+            <p style={{fontSize:9,color:C.blue,letterSpacing:"0.1em",marginBottom:4,
+              fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>BIG 5 BENCHMARKS</p>
+            <p style={{fontSize:12,color:C.sub,lineHeight:1.7,
+              fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{m.benchmark}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Personal credit flow ─────────────────────────────────────────────────────
 function PersonalCredit(){
-  const[step,setStep]=useState("form"); // form | results
+  const[step,setStep]=useState("form");
   const[form,setForm]=useState({
     annual_income:"",monthly_debts:"",credit_score:"",
     employment:"salaried",tenure:"",
@@ -240,8 +349,22 @@ function PersonalCredit(){
   });
   const[results,setResults]=useState(null);
   const[loading,setLoading]=useState(false);
+  const[explainMetric,setExplainMetric]=useState(null);
 
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  function ExplainBtn({metric,label}){
+    return(
+      <button onClick={()=>setExplainMetric(metric)}
+        style={{background:"none",border:`1px solid ${C.rule}`,cursor:"pointer",
+          padding:"1px 6px",fontSize:9,color:C.hint,fontFamily:"'JetBrains Mono',monospace",
+          letterSpacing:"0.06em",marginLeft:6,transition:"all 0.12s",lineHeight:1.4}}
+        onMouseEnter={e=>{e.target.style.borderColor=C.blue;e.target.style.color=C.blue;}}
+        onMouseLeave={e=>{e.target.style.borderColor=C.rule;e.target.style.color=C.hint;}}>
+        ? {label||"EXPLAIN"}
+      </button>
+    );
+  }
 
   const STRESS_RATE = 0.0525; // BoC stress test rate
   const MORTGAGE_RATE = 0.065;
@@ -415,18 +538,27 @@ function PersonalCredit(){
         <button className="ghost" onClick={()=>setStep("form")}>← EDIT PROFILE</button>
       </div>
 
+      <MetricModal metric={explainMetric} onClose={()=>setExplainMetric(null)}/>
+
       {/* Key ratios */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:20}}>
         {[
-          {label:"CREDIT SCORE",value:results.score,unit:"",color:results.score>=700?C.green:results.score>=650?C.amber:C.red},
-          {label:"GDS RATIO",value:results.gds.toFixed(1),unit:"%",color:results.gds<=32?C.green:results.gds<=39?C.amber:C.red,note:"max 39%"},
-          {label:"TDS RATIO",value:results.tds.toFixed(1),unit:"%",color:results.tds<=36?C.green:results.tds<=44?C.amber:C.red,note:"max 44%"},
-          {label:"DTI RATIO",value:results.dti.toFixed(1),unit:"%",color:results.dti<=36?C.green:results.dti<=42?C.amber:C.red,note:"max ~42%"},
+          {label:"CREDIT SCORE",value:results.score,unit:"",metric:"score",color:results.score>=700?C.green:results.score>=650?C.amber:C.red},
+          {label:"GDS RATIO",value:results.gds.toFixed(1),unit:"%",metric:"gds",color:results.gds<=32?C.green:results.gds<=39?C.amber:C.red,note:"max 39%"},
+          {label:"TDS RATIO",value:results.tds.toFixed(1),unit:"%",metric:"tds",color:results.tds<=36?C.green:results.tds<=44?C.amber:C.red,note:"max 44%"},
+          {label:"DTI RATIO",value:results.dti.toFixed(1),unit:"%",metric:"dti",color:results.dti<=36?C.green:results.dti<=42?C.amber:C.red,note:"max ~42%"},
         ].map(m=>(
           <div key={m.label} style={{background:C.paper,border:`1px solid ${C.rule}`,
             borderTop:`3px solid ${m.color}`,padding:16}}>
-            <p style={{fontSize:8,color:C.hint,marginBottom:8,letterSpacing:"0.12em",
-              fontFamily:"'JetBrains Mono',monospace"}}>{m.label}</p>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <p style={{fontSize:8,color:C.hint,letterSpacing:"0.12em",
+                fontFamily:"'JetBrains Mono',monospace"}}>{m.label}</p>
+              <button onClick={()=>setExplainMetric(m.metric)}
+                style={{background:"none",border:`1px solid ${C.rule}`,cursor:"pointer",
+                  width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:9,color:C.hint,fontFamily:"'JetBrains Mono',monospace",flexShrink:0,
+                  lineHeight:1}}>?</button>
+            </div>
             <p style={{fontSize:28,fontWeight:700,color:m.color,lineHeight:1,
               fontFamily:"'Lora',serif"}}>{m.value}{m.unit}</p>
             {m.note&&<p style={{fontSize:9,color:C.hint,marginTop:4,
@@ -442,6 +574,18 @@ function PersonalCredit(){
           display:"flex",alignItems:"center",gap:16}}>
           <p style={{fontSize:9,color:C.hint,letterSpacing:"0.14em",
             fontFamily:"'JetBrains Mono',monospace"}}>BANK APPROVAL MATRIX</p>
+          <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
+            {[["GDS","gds"],["TDS","tds"],["DTI","dti"],["STRESS TEST","stress"]].map(([l,k])=>(
+              <button key={k} onClick={()=>setExplainMetric(k)}
+                style={{background:"none",border:`1px solid ${C.rule}`,cursor:"pointer",
+                  padding:"2px 7px",fontSize:9,color:C.hint,fontFamily:"'JetBrains Mono',monospace",
+                  letterSpacing:"0.06em",transition:"all 0.12s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=C.blue;e.currentTarget.style.color=C.blue;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=C.rule;e.currentTarget.style.color=C.hint;}}>
+                ? {l}
+              </button>
+            ))}
+          </div>
           <div style={{display:"flex",gap:12}}>
             {[["✓ LIKELY",C.green],["~ BORDERLINE",C.amber],["✗ UNLIKELY",C.red]].map(([l,c])=>(
               <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
