@@ -130,7 +130,35 @@ function AuthScreen(){
             </div>
           ))}
           {err&&<p style={{fontSize:10,color:C.red,marginBottom:12,fontFamily:"'JetBrains Mono',monospace"}}>{err}</p>}
-          {msg&&<p style={{fontSize:10,color:C.green,marginBottom:12,fontFamily:"'JetBrains Mono',monospace"}}>{msg}</p>}
+          {msg&&(
+            <div style={{position:"fixed",inset:0,background:"rgba(28,26,20,0.65)",
+              zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",
+              padding:24}}>
+              <div style={{background:C.paper,border:`1px solid ${C.rule}`,
+                maxWidth:360,width:"100%",padding:32,textAlign:"center",
+                boxShadow:`6px 6px 0 ${C.ink}`}}>
+                <div style={{width:48,height:48,borderRadius:"50%",background:C.greenBg,
+                  border:`2px solid ${C.green}`,display:"flex",alignItems:"center",
+                  justifyContent:"center",margin:"0 auto 16px",fontSize:20}}>✓</div>
+                <p style={{fontSize:9,color:C.hint,letterSpacing:"0.14em",marginBottom:8,
+                  fontFamily:"'JetBrains Mono',monospace"}}>ACCOUNT CREATED</p>
+                <h3 style={{fontSize:22,fontWeight:700,fontFamily:"'Lora',serif",
+                  letterSpacing:"-0.01em",color:C.ink,marginBottom:10}}>
+                  Check your email
+                </h3>
+                <p style={{fontSize:12,color:C.sub,lineHeight:1.7,marginBottom:24,
+                  fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                  We sent a confirmation link to your email address. Click it to activate your account before signing in.
+                </p>
+                <button onClick={()=>{setMsg(null);setMode("login");}} style={{
+                  width:"100%",padding:"11px",border:"none",background:C.ink,
+                  color:C.bg,fontSize:11,fontWeight:600,cursor:"pointer",
+                  fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.1em"}}>
+                  BACK TO SIGN IN →
+                </button>
+              </div>
+            </div>
+          )}
           <button onClick={go} disabled={busy||!email||!pass} style={{
             width:"100%",padding:"12px",border:"none",boxSizing:"border-box",
             background:email&&pass?C.ink:C.rule,color:email&&pass?C.bg:C.hint,
