@@ -32,7 +32,9 @@ def get_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000",
+                   "https://creditlensanalyze.vercel.app/"
+                   ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
