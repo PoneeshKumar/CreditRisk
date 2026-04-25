@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine
 } from "recharts";
 
-const API = "http://localhost:8000";
+const API = "https://creditlens-1zzy.onrender.com";
 
 const C = {
   bg:"#F5F0E8",paper:"#FFFDF7",ink:"#1C1A14",inkLight:"#3D3A30",
@@ -218,7 +218,7 @@ function Landing({onSelect}){
                   fontFamily:"'JetBrains Mono',monospace"}}>{card.cta}</span>
                 <div style={{width:32,height:32,border:`1px solid ${card.color}`,
                   display:"flex",alignItems:"center",justifyContent:"center",
-                  color:card.color,fontSize:16,transition:"all 0.15s",
+                  fontSize:16,transition:"all 0.15s",
                   background:hovered===card.id?card.color:"transparent",
                   color:hovered===card.id?C.paper:card.color}}>→</div>
               </div>
@@ -353,21 +353,10 @@ function PersonalCredit(){
 
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
-  function ExplainBtn({metric,label}){
-    return(
-      <button onClick={()=>setExplainMetric(metric)}
-        style={{background:"none",border:`1px solid ${C.rule}`,cursor:"pointer",
-          padding:"1px 6px",fontSize:9,color:C.hint,fontFamily:"'JetBrains Mono',monospace",
-          letterSpacing:"0.06em",marginLeft:6,transition:"all 0.12s",lineHeight:1.4}}
-        onMouseEnter={e=>{e.target.style.borderColor=C.blue;e.target.style.color=C.blue;}}
-        onMouseLeave={e=>{e.target.style.borderColor=C.rule;e.target.style.color=C.hint;}}>
-        ? {label||"EXPLAIN"}
-      </button>
-    );
-  }
+
 
   const STRESS_RATE = 0.0525; // BoC stress test rate
-  const MORTGAGE_RATE = 0.065;
+
 
   const analyze=()=>{
     setLoading(true);
@@ -394,7 +383,6 @@ function PersonalCredit(){
         CIBC:   {mortgageScore:700,locScore:660,loanScore:650,maxGDS:38,maxTDS:44,maxDTI:40,maxLTV:95},
       };
 
-      const products=["mortgage","loc","loan"];
       const res={};
       BANKS.forEach(bank=>{
         const r=bankRules[bank];
