@@ -146,5 +146,4 @@ npm start
 
 ---
 
-*Built by Poneesh Kumar — CS + CFM @ University of Waterloo*
-*[LinkedIn](https://linkedin.com/in/poneeshkumar) · [GitHub](https://github.com/PoneeshKumar/CreditRisk)*
+*Built by Poneesh Kumar — CFM @ University of Waterloo*
