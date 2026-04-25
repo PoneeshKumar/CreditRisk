@@ -98,27 +98,32 @@ function AuthScreen(){
   };
   return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",
-  justifyContent:"center",fontFamily:"'Plus Jakarta Sans',sans-serif",
-  backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px)`}}>
-  <div style={{width:"100%",maxWidth:380,padding:"0 24px",boxSizing:"border-box"}}>
+      justifyContent:"center",fontFamily:"'Plus Jakarta Sans',sans-serif",
+      padding:"24px",boxSizing:"border-box",
+      backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,${C.rule}44 39px,${C.rule}44 40px)`}}>
+      <style>{`* { box-sizing: border-box !important; } input, button { width: 100% !important; max-width: 100% !important; }`}</style>
+      <div style={{width:"100%",maxWidth:420,boxSizing:"border-box",overflow:"hidden"}}>
         <div style={{marginBottom:36,textAlign:"center"}}>
           <div style={{display:"inline-block",borderBottom:`3px solid ${C.ink}`,paddingBottom:8,marginBottom:8}}>
             <span style={{fontSize:32,fontWeight:700,color:C.ink,fontFamily:"'Lora',serif",letterSpacing:"-0.01em"}}>CreditLens</span>
           </div>
           <p style={{fontSize:10,color:C.hint,letterSpacing:"0.14em",fontFamily:"'JetBrains Mono',monospace"}}>FINANCIAL RISK INTELLIGENCE</p>
         </div>
-        <div style={{background:C.paper,border:`1px solid ${C.rule}`,padding:28,boxShadow:`4px 4px 0 ${C.rule}`}}>
-          <p style={{fontSize:10,color:C.hint,letterSpacing:"0.14em",marginBottom:20,fontFamily:"'JetBrains Mono',monospace"}}>
+        <div style={{background:C.paper,border:`1px solid ${C.rule}`,padding:28,
+          boxShadow:`4px 4px 0 ${C.rule}`,width:"100%",boxSizing:"border-box"}}>
+          <p style={{fontSize:10,color:C.hint,letterSpacing:"0.14em",marginBottom:20,
+            fontFamily:"'JetBrains Mono',monospace"}}>
             {mode==="login"?"— SIGN IN":"— CREATE ACCOUNT"}
           </p>
           {[["EMAIL","email","you@company.com",email,setEmail],
             ["PASSWORD","password","••••••••",pass,setPass]].map(([label,type,ph,val,set],i)=>(
             <div key={label} style={{marginBottom:i===0?14:18}}>
-              <label style={{fontSize:9,color:C.hint,display:"block",marginBottom:5,letterSpacing:"0.14em",fontFamily:"'JetBrains Mono',monospace"}}>{label}</label>
+              <label style={{fontSize:9,color:C.hint,display:"block",marginBottom:5,
+                letterSpacing:"0.14em",fontFamily:"'JetBrains Mono',monospace"}}>{label}</label>
               <input type={type} value={val} onChange={e=>set(e.target.value)}
                 placeholder={ph} onKeyDown={e=>e.key==="Enter"&&go()}
                 style={{width:"100%",padding:"10px 12px",border:`1px solid ${C.rule}`,
-                  background:C.faint,color:C.ink,fontSize:12,
+                  background:C.faint,color:C.ink,fontSize:12,boxSizing:"border-box",
                   fontFamily:"'Plus Jakarta Sans',sans-serif",outline:"none",transition:"border 0.15s"}}
                 onFocus={e=>e.target.style.borderColor=C.ink}
                 onBlur={e=>e.target.style.borderColor=C.rule}/>
@@ -127,13 +132,15 @@ function AuthScreen(){
           {err&&<p style={{fontSize:10,color:C.red,marginBottom:12,fontFamily:"'JetBrains Mono',monospace"}}>{err}</p>}
           {msg&&<p style={{fontSize:10,color:C.green,marginBottom:12,fontFamily:"'JetBrains Mono',monospace"}}>{msg}</p>}
           <button onClick={go} disabled={busy||!email||!pass} style={{
-            width:"100%",padding:"12px",border:"none",
+            width:"100%",padding:"12px",border:"none",boxSizing:"border-box",
             background:email&&pass?C.ink:C.rule,color:email&&pass?C.bg:C.hint,
             fontSize:11,fontWeight:600,cursor:email&&pass?"pointer":"not-allowed",
-            fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.1em",transition:"all 0.15s",marginBottom:16}}>
+            fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.1em",
+            transition:"all 0.15s",marginBottom:16}}>
             {busy?"PROCESSING...":(mode==="login"?"SIGN IN →":"CREATE ACCOUNT →")}
           </button>
-          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.08em",textAlign:"center",fontFamily:"'JetBrains Mono',monospace"}}>
+          <p style={{fontSize:9,color:C.hint,letterSpacing:"0.08em",textAlign:"center",
+            fontFamily:"'JetBrains Mono',monospace"}}>
             {mode==="login"?"NO ACCOUNT? ":"HAVE ONE? "}
             <span onClick={()=>{setMode(mode==="login"?"signup":"login");setErr(null);setMsg(null);}}
               style={{color:C.blue,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:3}}>
