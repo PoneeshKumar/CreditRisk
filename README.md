@@ -3,6 +3,7 @@
 > A full-stack SaaS application that analyzes financial documents and benchmarks credit approval odds against Canada's Big 5 banks — built to solve a real problem in credit risk assessment.
 
 **Live:** [creditlensanalyze.vercel.app](https://creditlensanalyze.vercel.app) 
+**YouTube** [Demo](https://youtu.be/PPQ6L0Re5l8?si=olh9tpwCDhEyZjEJ)
 ---
 
 ## The Problem
